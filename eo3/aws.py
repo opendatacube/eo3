@@ -13,7 +13,6 @@ import botocore
 import botocore.session
 from botocore.credentials import Credentials, ReadOnlyCredentials
 from botocore.session import Session
-from sqlalchemy.engine.url import URL
 
 # TODO CORE: Copy of datacube.utils.generic.py
 _LCL = threading.local()
@@ -406,7 +405,7 @@ def s3_head_object(url: str, s3: MaybeS3 = None, **kwargs) -> Optional[Dict[str,
 
 
 def obtain_new_iam_auth_token(
-    url: URL, region_name: str = "auto", profile_name: Optional[str] = None
+    url: str, region_name: str = "auto", profile_name: Optional[str] = None
 ) -> str:
     # Boto3 is not core requirement, but ImportError is probably the right exception to throw anyway.
     from boto3.session import Session as Boto3Session
