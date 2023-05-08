@@ -28,9 +28,9 @@ from eo3.images import FileWrite, GridSpec, MeasurementBundler, ValidDataMethod
 from eo3.model import AccessoryDoc, DatasetDoc, Location, ProductDoc
 from eo3.names import NamingConventions, namer, resolve_location
 from eo3.properties import Eo3Dict, Eo3Interface
+from eo3.uris import is_url, uri_resolve
 from eo3.validate import Level, ValidationExpectations, ValidationMessage
 from eo3.verify import PackageChecksum
-from eo3.uris import is_url, uri_resolve
 
 
 class IfExists(Enum):

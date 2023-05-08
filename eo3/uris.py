@@ -1,17 +1,16 @@
 import os
-
 import pathlib
 import re
-from typing import Optional, Union
 import urllib.parse
+from pathlib import Path
+from typing import Optional, Union
 from urllib.parse import urljoin, urlparse
 from urllib.request import url2pathname
-from pathlib import Path
 
 # CORE TODO: forked from datacube.utils.uris
 
 
-URL_RE = re.compile(r'\A\s*[\w\d\+]+://')
+URL_RE = re.compile(r"\A\s*[\w\d\+]+://")
 
 
 def is_url(url_str: str) -> bool:
@@ -25,34 +24,33 @@ def is_url(url_str: str) -> bool:
 
 
 def is_vsipath(path: str) -> bool:
-    """ Check if string is a GDAL "/vsi.*" path
-    """
+    """Check if string is a GDAL "/vsi.*" path"""
     path = path.lower()
     return path.startswith("/vsi")
 
 
 def vsi_join(base: str, path: str) -> str:
-    """ Extend GDAL's vsi path
+    """Extend GDAL's vsi path
 
-        Basically just base/path, but taking care of trailing `/` in base
+    Basically just base/path, but taking care of trailing `/` in base
     """
-    return base.rstrip('/') + '/' + path
+    return base.rstrip("/") + "/" + path
 
 
 def default_base_dir() -> pathlib.Path:
     """Return absolute path to current directory. If PWD environment variable is
-       set correctly return that, note that PWD might be set to "symlinked"
-       path instead of "real" path.
+    set correctly return that, note that PWD might be set to "symlinked"
+    path instead of "real" path.
 
-       Only return PWD instead of cwd when:
+    Only return PWD instead of cwd when:
 
-       1. PWD exists (i.e. launched from interactive shell)
-       2. Contains Absolute path (sanity check)
-       3. Absolute ath in PWD resolves to the same directory as cwd (process didn't call chdir after starting)
+    1. PWD exists (i.e. launched from interactive shell)
+    2. Contains Absolute path (sanity check)
+    3. Absolute ath in PWD resolves to the same directory as cwd (process didn't call chdir after starting)
     """
-    cwd = pathlib.Path('.').resolve()
+    cwd = pathlib.Path(".").resolve()
 
-    _pwd = os.environ.get('PWD')
+    _pwd = os.environ.get("PWD")
     if _pwd is None:
         return cwd
 
@@ -62,7 +60,7 @@ def default_base_dir() -> pathlib.Path:
 
     try:
         pwd_resolved = pwd.resolve()
-    except IOError:
+    except OSError:
         return cwd
 
     if cwd != pwd_resolved:
@@ -71,19 +69,20 @@ def default_base_dir() -> pathlib.Path:
     return pwd
 
 
-def normalise_path(p: Union[str, pathlib.Path],
-                   base: Optional[Union[str, pathlib.Path]] = None) -> pathlib.Path:
+def normalise_path(
+    p: Union[str, pathlib.Path], base: Optional[Union[str, pathlib.Path]] = None
+) -> pathlib.Path:
     """Turn path into absolute path resolving any `../` and `.`
 
-       If path is relative pre-pend `base` path to it, `base` if set should be
-       an absolute path. If not set, current working directory (as seen by the
-       user launching the process, including any possible symlinks) will be
-       used.
+    If path is relative pre-pend `base` path to it, `base` if set should be
+    an absolute path. If not set, current working directory (as seen by the
+    user launching the process, including any possible symlinks) will be
+    used.
     """
     if not isinstance(p, (str, pathlib.Path)):
-        raise ValueError(f'p is not a Path or str: {p}')
+        raise ValueError(f"p is not a Path or str: {p}")
     if not isinstance(base, (str, pathlib.Path, type(None))):
-        raise ValueError(f'base is not a Path, a str, or None: {p}')
+        raise ValueError(f"base is not a Path, a str, or None: {p}")
 
     def norm(p):
         return pathlib.Path(os.path.normpath(str(p)))
@@ -144,24 +143,25 @@ def uri_to_local_path(local_uri: Optional[str]) -> Optional[pathlib.Path]:
         return None
 
     components = urlparse(local_uri)
-    if components.scheme != 'file':
-        raise ValueError('Only file URIs currently supported. Tried {components.scheme}')
+    if components.scheme != "file":
+        raise ValueError(
+            "Only file URIs currently supported. Tried {components.scheme}"
+        )
 
     path = url2pathname(components.path)
 
     if components.netloc:
-        if os.name == 'nt':
-            path = '//{}{}'.format(components.netloc, path)
+        if os.name == "nt":
+            path = f"//{components.netloc}{path}"
         else:
-            raise ValueError('Only know how to use `netloc` urls on Windows')
+            raise ValueError("Only know how to use `netloc` urls on Windows")
 
     return pathlib.Path(path)
 
 
 def mk_part_uri(uri: str, idx: int) -> str:
-    """ Appends fragment part to the uri recording index of the part
-    """
-    return '{}#part={:d}'.format(uri, idx)
+    """Appends fragment part to the uri recording index of the part"""
+    return f"{uri}#part={idx:d}"
 
 
 def as_url(maybe_uri: str) -> str:
@@ -185,9 +185,9 @@ def register_scheme(*schemes):
 # schemes support relative offsets. By default only well known types are
 # understood. So here we register more common blob store url protocols.
 register_scheme(
-    's3',         # `s3://...`      -- AWS S3 Object Store
-    'gs',         # `gs://...`      -- Google Cloud Storage
-    'wasb',       # `wasb[s]://...` -- Windows Azure Storage Blob
-    'wasbs',
-    'az',
+    "s3",  # `s3://...`      -- AWS S3 Object Store
+    "gs",  # `gs://...`      -- Google Cloud Storage
+    "wasb",  # `wasb[s]://...` -- Windows Azure Storage Blob
+    "wasbs",
+    "az",
 )

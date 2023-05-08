@@ -42,11 +42,18 @@ from rasterio.errors import CRSError
 from shapely.validation import explain_validity
 
 from eo3 import model, serialise, utils
+from eo3.eo3_core import prep_eo3
 from eo3.model import DatasetDoc
 from eo3.ui import bool_style, is_absolute, uri_resolve
-from eo3.utils import EO3_SCHEMA, default_utc, load_documents, read_documents, InvalidDocException, contains
 from eo3.uris import is_url
-from eo3.eo3_core import prep_eo3
+from eo3.utils import (
+    EO3_SCHEMA,
+    InvalidDocException,
+    contains,
+    default_utc,
+    load_documents,
+    read_documents,
+)
 
 DEFAULT_NULLABLE_FIELDS = ("label",)
 DEFAULT_OPTIONAL_FIELDS = (
@@ -1298,7 +1305,7 @@ def _load_remote_product_definitions(
 
     if from_datacube:
         # The normal datacube environment variables can be used to choose alternative configs.
-        #with Datacube(app="eo3-validate") as dc:
+        # with Datacube(app="eo3-validate") as dc:
         #    for product in dc.index.products.get_all():
         #        product_definitions[product.name] = product.definition
         #

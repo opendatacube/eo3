@@ -20,9 +20,9 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from eo3.utils import read_documents
 from eo3.model import ODC_DATASET_SCHEMA_URL, DatasetDoc, Eo3Dict
 from eo3.properties import FileFormat
+from eo3.utils import read_documents
 
 converter = cattr.Converter()
 
@@ -191,7 +191,9 @@ def _load_schema_validator(p: Path) -> jsonschema.Draft6Validator:
 SCHEMAS_PATH = Path(__file__).parent / "schema"
 DATASET_SCHEMA = _load_schema_validator(SCHEMAS_PATH / "dataset.schema.yaml")
 PRODUCT_SCHEMA = _load_schema_validator(SCHEMAS_PATH / "product-schema.yaml")
-METADATA_TYPE_SCHEMA = _load_schema_validator(SCHEMAS_PATH / "metadata-type-schema.yaml")
+METADATA_TYPE_SCHEMA = _load_schema_validator(
+    SCHEMAS_PATH / "metadata-type-schema.yaml"
+)
 
 
 def from_doc(doc: Dict, skip_validation=False) -> DatasetDoc:

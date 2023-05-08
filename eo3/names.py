@@ -4,11 +4,10 @@ from pathlib import Path
 from typing import Dict, Mapping, Optional, Sequence, Set, Union
 from urllib.parse import quote, unquote, urlparse
 
-
 from eo3 import utils
 from eo3.model import DEA_URI_PREFIX, Location
 from eo3.properties import Eo3Dict, Eo3Interface
-from eo3.uris import register_scheme, is_url, is_vsipath, normalise_path, uri_resolve
+from eo3.uris import is_url, is_vsipath, normalise_path, register_scheme, uri_resolve
 
 # Needed when packaging zip or tar files.
 register_scheme("zip", "tar")

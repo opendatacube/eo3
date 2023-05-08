@@ -1,21 +1,20 @@
 import enum
-import functools
 import gzip
 import itertools
 import json
 import math
 import os
-import pathlib
 import re
 from collections import OrderedDict
-from datetime import datetime, timezone, date
-from decimal import Decimal
 from contextlib import contextmanager
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
+from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple, Union
 from urllib.parse import urlparse
-from urllib.request import url2pathname, urlopen
-from typing import Any, Dict, Iterable, Mapping, Tuple, Optional, Union, Sequence
+from urllib.request import urlopen
 from uuid import UUID
+
 import yaml
 
 try:
@@ -23,13 +22,11 @@ try:
 except ImportError:
     from yaml import SafeLoader  # type: ignore
 
-import botocore
-
-from eo3.uris import as_url, mk_part_uri, uri_to_local_path
-
 import ciso8601
 import click
 import numpy
+
+from eo3.uris import as_url, mk_part_uri
 
 EO3_SCHEMA = "https://schemas.opendatacube.org/dataset"
 
@@ -218,16 +215,18 @@ def flatten_dict(
 @contextmanager
 def _open_from_s3(url):
     o = urlparse(url)
-    if o.scheme != 's3':
+    if o.scheme != "s3":
         raise RuntimeError("Abort abort I don't know how to open non s3 urls")
 
     from .aws import s3_open
+
     yield s3_open(url)
 
 
 # CORE TODO: from datacube.utils.documents
 def _open_with_urllib(url):
-    return urlopen(url)  #nosec B310
+    return urlopen(url)  # nosec B310
+
 
 # CORE TODO: from datacube.utils.documents
 class NoDatesSafeLoader(SafeLoader):  # pylint: disable=too-many-ancestors
@@ -242,26 +241,26 @@ class NoDatesSafeLoader(SafeLoader):  # pylint: disable=too-many-ancestors
         serialise as json which doesn't have the advanced types of
         yaml, and leads to slightly different objects down the track.
         """
-        if 'yaml_implicit_resolvers' not in cls.__dict__:
+        if "yaml_implicit_resolvers" not in cls.__dict__:
             cls.yaml_implicit_resolvers = cls.yaml_implicit_resolvers.copy()
 
         for first_letter, mappings in cls.yaml_implicit_resolvers.items():
-            cls.yaml_implicit_resolvers[first_letter] = [(tag, regexp)
-                                                         for tag, regexp in mappings
-                                                         if tag != tag_to_remove]
+            cls.yaml_implicit_resolvers[first_letter] = [
+                (tag, regexp) for tag, regexp in mappings if tag != tag_to_remove
+            ]
 
 
 # CORE TODO: from datacube.utils.documents
-NoDatesSafeLoader.remove_implicit_resolver('tag:yaml.org,2002:timestamp')
+NoDatesSafeLoader.remove_implicit_resolver("tag:yaml.org,2002:timestamp")
 
 
 # CORE TODO: from datacube.utils.documents
 _PROTOCOL_OPENERS = {
-    's3': _open_from_s3,
-    'ftp': _open_with_urllib,
-    'http': _open_with_urllib,
-    'https': _open_with_urllib,
-    'file': _open_with_urllib
+    "s3": _open_from_s3,
+    "ftp": _open_with_urllib,
+    "http": _open_with_urllib,
+    "https": _open_with_urllib,
+    "file": _open_with_urllib,
 }
 
 
@@ -277,9 +276,9 @@ def load_from_json(handle):
 
 
 _PARSERS = {
-    '.yaml': load_from_yaml,
-    '.yml': load_from_yaml,
-    '.json': load_from_json,
+    ".yaml": load_from_yaml,
+    ".yml": load_from_yaml,
+    ".json": load_from_json,
 }
 
 
@@ -358,12 +357,12 @@ def load_documents(path):
     path = str(path)
     url = as_url(path)
     scheme = urlparse(url).scheme
-    compressed = url[-3:] == '.gz'
+    compressed = url[-3:] == ".gz"
 
     # if scheme == 'file' and path[-3:] == '.nc':
     #   path = uri_to_local_path(url)
     #   yield from load_from_netcdf(path)
-    #lse:
+    # lse:
     with _PROTOCOL_OPENERS[scheme](url) as fh:
         if compressed:
             fh = gzip.open(fh)
@@ -443,9 +442,9 @@ def read_documents(*paths, uri=False):
                 idx, doc = x
                 return mk_part_uri(url, idx), doc
 
-            yield from map_with_lookahead(enumerate(docs),
-                                          if_one=add_uri_no_part,
-                                          if_many=add_uri_with_part)
+            yield from map_with_lookahead(
+                enumerate(docs), if_one=add_uri_no_part, if_many=add_uri_with_part
+            )
 
     for path in paths:
         try:
@@ -453,9 +452,9 @@ def read_documents(*paths, uri=False):
         except InvalidDocException as e:
             raise e
         except (yaml.YAMLError, ValueError) as e:
-            raise InvalidDocException('Failed to load %s: %s' % (path, e))
+            raise InvalidDocException(f"Failed to load {path}: {e}")
         except Exception as e:
-            raise InvalidDocException('Failed to load %s: %s' % (path, e))
+            raise InvalidDocException(f"Failed to load {path}: {e}")
 
 
 # CORE TODO: from datacube.utils.changes
@@ -480,8 +479,12 @@ def contains(v1: Changable, v2: Changable, case_sensitive: bool = False) -> bool
             return isinstance(v2, str) and v1.lower() == v2.lower()
 
     if isinstance(v1, dict):
-        return v2 is None or (isinstance(v2, dict) and
-                              all(contains(v1.get(k, object()), v, case_sensitive=case_sensitive)
-                                  for k, v in v2.items()))
+        return v2 is None or (
+            isinstance(v2, dict)
+            and all(
+                contains(v1.get(k, object()), v, case_sensitive=case_sensitive)
+                for k, v in v2.items()
+            )
+        )
 
     return v1 == v2

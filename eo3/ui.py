@@ -5,6 +5,7 @@ from typing import Optional, Union
 from urllib.parse import urljoin, urlparse
 
 import click
+
 from eo3.uris import normalise_path
 
 

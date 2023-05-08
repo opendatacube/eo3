@@ -8,6 +8,7 @@ import pytest
 
 from eo3 import serialise
 from eo3.model import DatasetDoc
+
 # from eo3.prepare.landsat_l1_prepare import normalise_nci_symlinks
 
 L71GT_TARBALL_PATH: Path = (
