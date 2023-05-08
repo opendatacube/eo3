@@ -79,6 +79,7 @@ setup(
         "h5py",
         "jsonschema>=3",  # We want a Draft6Validator
         "numpy>=1.15.4",
+        "odc-geo",
         "pyproj",
         "rasterio",
         "ruamel.yaml",
@@ -86,7 +87,6 @@ setup(
         "shapely",
         "structlog",
         "xarray",
-        "datacube",
         "python-rapidjson",
         "pystac>=1.7",
     ],

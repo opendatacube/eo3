@@ -143,38 +143,7 @@ def uri_to_local_path(local_uri: Optional[str]) -> Optional[pathlib.Path]:
 
     components = urlparse(local_uri)
     if components.scheme != 'file':
-        raise ValueError('Only file URIs currently supported. Tried %r.' % components.scheme)
-
-    path = url2pathname(components.path)
-
-    if components.netloc:
-        if os.name == 'nt':
-            path = '//{}{}'.format(components.netloc, path)
-        else:
-            raise ValueError('Only know how to use `netloc` urls on Windows')
-
-    return pathlib.Path(path)
-
-
-def uri_to_local_path(local_uri: Optional[str]) -> Optional[pathlib.Path]:
-    """
-    Transform a URI to a platform dependent Path.
-
-    For example on Unix:
-    'file:///tmp/something.txt' -> '/tmp/something.txt'
-
-    On Windows:
-    'file:///C:/tmp/something.txt' -> 'C:\\tmp\\test.tmp'
-
-    .. note:
-        Only supports file:// schema URIs
-    """
-    if not local_uri:
-        return None
-
-    components = urlparse(local_uri)
-    if components.scheme != 'file':
-        raise ValueError('Only file URIs currently supported. Tried %r.' % components.scheme)
+        raise ValueError('Only file URIs currently supported. Tried {components.scheme}')
 
     path = url2pathname(components.path)
 

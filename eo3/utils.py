@@ -269,7 +269,7 @@ _PROTOCOL_OPENERS = {
 # CORE TODO: from datacube.utils.documents
 def load_from_yaml(handle, parse_dates=False):
     loader = SafeLoader if parse_dates else NoDatesSafeLoader
-    yield from yaml.load_all(handle, Loader=loader)
+    yield from yaml.load_all(handle, Loader=loader)  # noqa: DUO109
 
 
 # CORE TODO: from datacube.utils.documents
