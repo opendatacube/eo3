@@ -235,6 +235,8 @@ tifffile==2022.10.10
     # via scikit-image
 tomli==2.0.1
     # via pytest
+toolz==0.12.0
+    # via eo3 (setup.py)
 typing-extensions==4.4.0
     # via pydantic
 urllib3==1.26.12

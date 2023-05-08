@@ -87,6 +87,7 @@ setup(
         "shapely",
         "structlog",
         "xarray",
+        "toolz",
         "python-rapidjson",
         "pystac>=1.7",
     ],
