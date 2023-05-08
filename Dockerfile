@@ -19,7 +19,7 @@ RUN apt-get update && \
       wget \
       python3-pip \
       # For Psycopg2
-      libpq-dev python-dev \
+      libpq-dev python3-dev \
     && apt-get autoclean && \
     apt-get autoremove && \
     rm -rf /var/lib/{apt,dpkg,cache,log}
