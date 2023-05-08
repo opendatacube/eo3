@@ -18,6 +18,7 @@ tests_require = [
     "mock",
     "pep8-naming",
     "pytest",
+    "pytest-cov",
     "rio_cogeo",
     "sphinx-autodoc-typehints",
     "sphinx_rtd_theme",
