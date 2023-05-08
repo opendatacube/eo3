@@ -1,7 +1,7 @@
 
 # This gdal version should match the "gdal=="
 # line in setup.py's "docker"
-FROM osgeo/gdal:ubuntu-small-3.3.2
+FROM osgeo/gdal:ubuntu-small-3.6.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LC_ALL=C.UTF-8 \
@@ -10,6 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Apt installation
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y \
       build-essential \
       git \
@@ -19,7 +20,7 @@ RUN apt-get update && \
       wget \
       python3-pip \
       # For Psycopg2
-      libpq-dev python-dev \
+      libpq-dev python3-dev \
     && apt-get autoclean && \
     apt-get autoremove && \
     rm -rf /var/lib/{apt,dpkg,cache,log}
@@ -51,7 +52,8 @@ RUN pip install -r /conf/${ENVIRONMENT}.txt
 COPY .pre-commit-config.yaml /conf/
 
 RUN if [ "$ENVIRONMENT" = "test" ] ; then \
-       mkdir -p ~/pre-commit \
+       apt-get install -y pre-commit \
+       && mkdir -p ~/pre-commit \
        && cp /conf/.pre-commit-config.yaml ~/pre-commit \
        && cd ~/pre-commit \
        && git init \

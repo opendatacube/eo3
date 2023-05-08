@@ -18,6 +18,7 @@ tests_require = [
     "mock",
     "pep8-naming",
     "pytest",
+    "pytest-cov",
     "rio_cogeo",
     "sphinx-autodoc-typehints",
     "sphinx_rtd_theme",
@@ -32,7 +33,7 @@ EXTRAS_REQUIRE = {
     # Optional valid-data poly handling methods
     "algorithms": ["scikit-image"],
     # Match the expected environment of our docker image
-    "docker": ["gdal==3.3.2"],
+    "docker": ["gdal==3.6.3"],
 }
 EXTRAS_REQUIRE["all"] = list(chain(EXTRAS_REQUIRE.values()))
 # Tests need all those optionals too.
@@ -79,6 +80,7 @@ setup(
         "h5py",
         "jsonschema>=3",  # We want a Draft6Validator
         "numpy>=1.15.4",
+        "odc-geo",
         "pyproj",
         "rasterio",
         "ruamel.yaml",
@@ -86,7 +88,7 @@ setup(
         "shapely",
         "structlog",
         "xarray",
-        "datacube",
+        "toolz",
         "python-rapidjson",
         "pystac>=1.7",
     ],
