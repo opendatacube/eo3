@@ -80,8 +80,10 @@ def normalise_path(p: Union[str, pathlib.Path],
        user launching the process, including any possible symlinks) will be
        used.
     """
-    assert isinstance(p, (str, pathlib.Path))
-    assert isinstance(base, (str, pathlib.Path, type(None)))
+    if not isinstance(p, (str, pathlib.Path)):
+        raise ValueError(f'p is not a Path or str: {p}')
+    if not isinstance(base, (str, pathlib.Path, type(None))):
+        raise ValueError(f'base is not a Path, a str, or None: {p}')
 
     def norm(p):
         return pathlib.Path(os.path.normpath(str(p)))

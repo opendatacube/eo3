@@ -227,8 +227,7 @@ def _open_from_s3(url):
 
 # CORE TODO: from datacube.utils.documents
 def _open_with_urllib(url):
-    return urlopen(url)
-
+    return urlopen(url)  #nosec B310
 
 # CORE TODO: from datacube.utils.documents
 class NoDatesSafeLoader(SafeLoader):  # pylint: disable=too-many-ancestors
