@@ -36,7 +36,6 @@ import toolz
 from attr import Factory, define, field, frozen
 from boltons.iterutils import get_path
 from click import echo, secho, style
-from datacube.index.eo3 import prep_eo3
 from rasterio import DatasetReader
 from rasterio.crs import CRS
 from rasterio.errors import CRSError
@@ -47,6 +46,7 @@ from eo3.model import DatasetDoc
 from eo3.ui import bool_style, is_absolute, uri_resolve
 from eo3.utils import EO3_SCHEMA, default_utc, load_documents, read_documents, InvalidDocException, contains
 from eo3.uris import is_url
+from eo3.eo3_core import prep_eo3
 
 DEFAULT_NULLABLE_FIELDS = ("label",)
 DEFAULT_OPTIONAL_FIELDS = (

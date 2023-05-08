@@ -10,6 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Apt installation
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y \
       build-essential \
       git \
@@ -51,7 +52,8 @@ RUN pip install -r /conf/${ENVIRONMENT}.txt
 COPY .pre-commit-config.yaml /conf/
 
 RUN if [ "$ENVIRONMENT" = "test" ] ; then \
-       mkdir -p ~/pre-commit \
+       apt-get install -y pre-commit \
+       && mkdir -p ~/pre-commit \
        && cp /conf/.pre-commit-config.yaml ~/pre-commit \
        && cd ~/pre-commit \
        && git init \

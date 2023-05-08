@@ -70,7 +70,7 @@ exceptiongroup==1.0.0rc9
     # via cattrs
 flake8==5.0.4
     # via pep8-naming
-gdal==3.3.2
+gdal==3.6.3
     # via eo3 (setup.py)
 h5py==3.7.0
     # via eo3 (setup.py)
