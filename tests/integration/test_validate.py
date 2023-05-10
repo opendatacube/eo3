@@ -10,7 +10,7 @@ from click.testing import CliRunner, Result
 from rasterio.io import DatasetWriter
 
 from eo3 import serialise, validate
-from eo3.model import DatasetDoc
+from eo3.model import Eo3DatasetDocBase
 
 # Either a dict or a path to a document
 from eo3.validate import DocKind, filename_doc_kind, guess_kind_from_contents
@@ -553,7 +553,7 @@ def test_dtype_compare_with_product_doc(
 
 def test_nodata_compare_with_product_doc(
     eo_validator: ValidateRunner,
-    l1_ls8_dataset: DatasetDoc,
+    l1_ls8_dataset: Eo3DatasetDocBase,
     l1_ls8_metadata_path: Path,
     l1_ls8_product: Dict,
 ):
@@ -583,7 +583,7 @@ def test_nodata_compare_with_product_doc(
 
 def test_measurements_compare_with_nans(
     eo_validator: ValidateRunner,
-    l1_ls8_dataset: DatasetDoc,
+    l1_ls8_dataset: Eo3DatasetDocBase,
     l1_ls8_metadata_path: Path,
     l1_ls8_product: Dict,
 ):

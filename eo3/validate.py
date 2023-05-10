@@ -43,7 +43,7 @@ from shapely.validation import explain_validity
 
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
-from eo3.model import DatasetDoc
+from eo3.model import Eo3DatasetDocBase
 from eo3.ui import bool_style, is_absolute, uri_resolve
 from eo3.uris import is_url
 from eo3.utils import (
@@ -981,7 +981,7 @@ def _differences_as_hint(product_diffs):
     return indent("\n".join(product_diffs), prefix="\t")
 
 
-def _validate_stac_properties(dataset: DatasetDoc):
+def _validate_stac_properties(dataset: Eo3DatasetDocBase):
     for name, value in dataset.properties.items():
         if name not in dataset.properties.KNOWN_PROPERTIES:
             yield _warning("unknown_property", f"Unknown stac property {name!r}")
@@ -1050,7 +1050,7 @@ def _is_nan(v):
     return isinstance(v, float) and math.isnan(v)
 
 
-def _validate_geo(dataset: DatasetDoc, expect_geometry: bool = True):
+def _validate_geo(dataset: Eo3DatasetDocBase, expect_geometry: bool = True):
     has_some_geo = _has_some_geo(dataset)
     if not has_some_geo and expect_geometry:
         yield _info("non_geo", "No geo information in dataset")
@@ -1098,7 +1098,7 @@ def _validate_geo(dataset: DatasetDoc, expect_geometry: bool = True):
                 )
 
 
-def _has_some_geo(dataset: DatasetDoc) -> bool:
+def _has_some_geo(dataset: Eo3DatasetDocBase) -> bool:
     return dataset.geometry is not None or dataset.grids or dataset.crs
 
 

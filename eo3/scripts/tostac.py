@@ -13,7 +13,7 @@ from click import echo, style
 
 import eo3.stac as eo3stac
 from eo3 import serialise
-from eo3.model import DatasetDoc
+from eo3.model import Eo3DatasetDocBase
 from eo3.ui import PathPath
 from eo3.utils import jsonify_document
 
@@ -66,7 +66,7 @@ def run(
 
 
 def dc_to_stac(
-    dataset: DatasetDoc,
+    dataset: Eo3DatasetDocBase,
     input_metadata: Path,
     output_path: Path,
     stac_base_url: str,
