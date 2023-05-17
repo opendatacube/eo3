@@ -21,7 +21,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
-    Union,
+    Union, MutableMapping, Mapping,
 )
 from urllib.parse import urljoin, urlparse
 from urllib.request import urlopen
@@ -81,6 +81,9 @@ class DocKind(enum.Enum):
     legacy_dataset = 5
     # Legacy product config for ingester
     ingestion_config = 6
+    @property
+    def is_legacy(self):
+        return self in (self.legacy_dataset, self.ingestion_config)
 
 
 # What kind of document each suffix represents.
@@ -171,10 +174,30 @@ def _warning(code: str, reason: str, hint: str = None):
 def _error(code: str, reason: str, hint: str = None):
     return ValidationMessage(Level.error, code, reason, hint=hint)
 
+ValidationMessages = Generator[ValidationMessage, None, None]
+
+
+class ContextualMessager:
+    def __init__(self, context: dict):
+        self.context = context
+        self.errors = 0
+
+    def info(self, code: str, reason: str, hint: str = None):
+        return ValidationMessage(Level.info, code, reason, hint=hint, context=self.context)
+
+    def warning(self, code: str, reason: str, hint: str = None):
+        return ValidationMessage(Level.warning, code, reason, hint=hint, context=self.context)
+
+    def error(self, code: str, reason: str, hint: str = None):
+        self.errors += 1
+        return ValidationMessage(Level.error, code, reason, hint=hint, context=self.context)
+
 
 ValidationMessages = Generator[ValidationMessage, None, None]
 
 
+
+# REVISIT: Do we want this here? feels kinda high level, but seems safe.
 @frozen(init=True)
 class ValidationExpectations:
     """
@@ -241,51 +264,87 @@ def validate_dataset(
     :param readable_location: Dataset location to use, if not the metadata path.
     :param expect: Where can we be lenient in validation?
     """
-    validation_context = {}
+    # Prepare validation context and contextual message builder
     expect = expect or ValidationExpectations()
+    validation_context = {}
     if metadata_type_definition is not None:
         expect = expect.with_document_overrides(metadata_type_definition)
         validation_context["type"] = metadata_type_definition["name"]
     if product_definition is not None:
         expect = expect.with_document_overrides(product_definition)
         validation_context["product"] = product_definition["name"]
+    msg = ContextualMessager(validation_context)
+    if expect.allow_extra_measurements:
+        msg.warning("Extra measurements are deprecated")
+    # Validate against schema and deserialise to a (base eo3) dataset doc
+    yield from _validate_ds_to_schema(doc, msg)
+    if msg.errors:
+        return
 
-    # noinspection PyShadowingNames
-    def _info(code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.info, code, reason, hint=hint, context=validation_context
-        )
+    # TODO: How to make this step more extensible?
+    dataset = serialise.from_doc(doc, skip_validation=True)
 
-    # noinspection PyShadowingNames
-    def _warning(code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.warning, code, reason, hint=hint, context=validation_context
-        )
+    # non-schema basic validation
+    if not dataset.product.href:
+        msg.info("product_href", "A url (href) is recommended for products")
 
-    # noinspection PyShadowingNames
-    def _error(code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.error, code, reason, hint=hint, context=validation_context
-        )
+    # Validate geometry
+    yield from _validate_geo(dataset, msg, expect_geometry=expect.require_geometry)
+    if msg.errors:
+        return
 
+    # Note that a dataset may have no measurements (eg. telemetry data).
+    # (TODO: a stricter mode for when we know we should have geo and measurement info)
+    # Is it even meaningful to have one and not the other?
+    if dataset.measurements:
+        yield from _validate_measurements(dataset, msg)
+        if msg.errors:
+            return
+
+    # Base properties
+    # TODO: How to make this step more extensible
+    yield from _validate_stac_properties(dataset, msg)
+    if msg.errors:
+        return
+
+    required_measurements: Dict[str, ExpectedMeasurement] = {}
+
+    # Validate dataset against product and metadata type definitions
+    if product_definition is not None:
+        yield from _validate_ds_to_product(dataset, required_measurements, product_definition, msg)
+        if msg.errors:
+            return
+
+    if metadata_type_definition:
+        yield from _validate_ds_to_metadata_type(doc, metadata_type_definition, expect, msg)
+        if msg.errors:
+            return
+
+    if thorough:
+        # Validate contents of actual data against measurement metadata
+        yield from _validate_ds_against_data(dataset, readable_location, required_measurements, msg)
+
+
+def _validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMessages:
+    """
+    Validate against eo3 schema
+    """
     schema = doc.get("$schema")
     if schema is None:
-        yield _error(
+        yield msg.error(
             "no_schema",
             f"No $schema field. "
             f"You probably want an ODC dataset schema {model.ODC_DATASET_SCHEMA_URL!r}",
         )
         return
     if schema != model.ODC_DATASET_SCHEMA_URL:
-        yield _error(
+        yield msg.error(
             "unknown_doc_type",
             f"Unknown doc schema {schema!r}. Only ODC datasets are supported ({model.ODC_DATASET_SCHEMA_URL!r})",
         )
         return
 
-    has_doc_errors = False
     for error in serialise.DATASET_SCHEMA.iter_errors(doc):
-        has_doc_errors = True
         displayable_path = ".".join(error.absolute_path)
 
         hint = None
@@ -293,192 +352,184 @@ def validate_dataset(
             hint = "epsg codes should be prefixed with 'epsg:1234'"
 
         context = f"({displayable_path}) " if displayable_path else ""
-        yield _error("structure", f"{context}{error.message} ", hint=hint)
+        yield msg.error("structure", f"{context}{error.message} ", hint=hint)
 
-    if has_doc_errors:
-        return
 
-    dataset = serialise.from_doc(doc, skip_validation=True)
-
-    if not dataset.product.href:
-        _info("product_href", "A url (href) is recommended for products")
-
-    yield from _validate_geo(dataset, expect_geometry=expect.require_geometry)
-
-    # Note that a dataset may have no measurements (eg. telemetry data).
-    # (TODO: a stricter mode for when we know we should have geo and measurement info)
-    if dataset.measurements:
-        for name, measurement in dataset.measurements.items():
-            grid_name = measurement.grid
-            if grid_name != "default" or dataset.grids:
-                if grid_name not in dataset.grids:
-                    yield _error(
-                        "invalid_grid_ref",
-                        f"Measurement {name!r} refers to unknown grid {grid_name!r}",
-                    )
-
-            if is_absolute(measurement.path):
-                yield _warning(
-                    "absolute_path",
-                    f"measurement {name!r} has an absolute path: {measurement.path!r}",
+def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
+    for name, measurement in dataset.measurements.items():
+        grid_name = measurement.grid
+        if grid_name != "default" or dataset.grids:
+            if grid_name not in dataset.grids:
+                yield msg.error(
+                    "invalid_grid_ref",
+                    f"Measurement {name!r} refers to unknown grid {grid_name!r}",
                 )
 
-    yield from _validate_stac_properties(dataset)
-
-    required_measurements: Dict[str, ExpectedMeasurement] = {}
-    if product_definition is not None:
-        required_measurements.update(
-            {
-                m.name: m
-                for m in map(
-                    ExpectedMeasurement.from_definition,
-                    product_definition.get("measurements") or (),
-                )
-            }
-        )
-
-        product_name = product_definition.get("name")
-        if product_name != dataset.product.name:
-            # This is only informational as it's possible products may be indexed with finer-grained
-            # categories than the original datasets: eg. a separate "nrt" product, or test product.
-            yield _info(
-                "product_mismatch",
-                f"Dataset product name {dataset.product.name!r} "
-                f"does not match the given product ({product_name!r}",
+        if is_absolute(measurement.path):
+            yield msg.warning(
+                "absolute_path",
+                f"measurement {name!r} has an absolute path: {measurement.path!r}",
             )
 
-        for name in required_measurements:
-            if name not in dataset.measurements.keys():
-                yield _error(
-                    "missing_measurement",
-                    f"Product {product_name} expects a measurement {name!r})",
-                )
-        measurements_not_in_product = set(dataset.measurements.keys()).difference(
-            {m["name"] for m in product_definition.get("measurements") or ()}
-        )
-        # Remove the measurements that are allowed to be extra.
-        measurements_not_in_product.difference_update(
-            expect.allow_extra_measurements or set()
-        )
 
-        if measurements_not_in_product:
-            things = ", ".join(sorted(measurements_not_in_product))
-            yield _warning(
-                "extra_measurements",
-                f"Dataset has measurements not present in product definition for {product_name!r}: {things}",
-                hint="This may be valid, as it's allowed by ODC. Set `expect_extra_measurements` to mute this.",
+def _validate_ds_to_product(dataset: Eo3DatasetDocBase,
+                            required_measurements: MutableMapping[str, "ExpectedMeasurement"],
+                            product_definition: Mapping,
+                            allow_extra_measurements: Sequence[str],
+                            msg: ContextualMessager):
+    required_measurements.update(
+        {
+            m.name: m
+            for m in map(
+            ExpectedMeasurement.from_definition,
+            product_definition.get("measurements") or (),
             )
+        }
+    )
 
-    if metadata_type_definition:
-        # Datacube does certain transforms on an eo3 doc before storage.
-        # We need to do the same, as the fields will be read from the storage.
-        prepared_doc = prep_eo3(doc)
-
-        all_nullable_fields = tuple(expect.allow_nullable_fields) + tuple(
-            expect.allow_missing_fields
+    product_name = product_definition.get("name")
+    if product_name != dataset.product.name:
+        # This is only informational as it's possible products may be indexed with finer-grained
+        # categories than the original datasets: eg. a separate "nrt" product, or test product.
+        yield msg.info(
+            "product_mismatch",
+            f"Dataset product name {dataset.product.name!r} "
+            f"does not match the given product ({product_name!r}",
         )
-        for field_name, offsets in _get_field_offsets(
+
+    for name in required_measurements:
+        if name not in dataset.measurements.keys():
+            yield msg.error(
+                "missing_measurement",
+                f"Product {product_name} expects a measurement {name!r})",
+            )
+    measurements_not_in_product = set(dataset.measurements.keys()).difference(
+        {m["name"] for m in product_definition.get("measurements") or ()}
+    )
+    # Remove the measurements that are allowed to be extra.
+    measurements_not_in_product.difference_update(
+        allow_extra_measurements or set()
+    )
+
+    if measurements_not_in_product:
+        things = ", ".join(sorted(measurements_not_in_product))
+        yield msg.warning(
+            "extra_measurements",
+            f"Dataset has measurements not present in product definition for {product_name!r}: {things}",
+            hint="This may be valid, as it's allowed by ODC. Set `expect_extra_measurements` to mute this.",
+        )
+
+
+def _validate_ds_to_metadata_type(doc: Dict,
+                                  metadata_type_definition: Dict,
+                                  expect: ValidationExpectations,
+                                  msg: ContextualMessager):
+    # Datacube does certain transforms on an eo3 doc before storage.
+    # We need to do the same, as the fields will be read from the storage.
+    prepared_doc = prep_eo3(doc)
+
+    all_nullable_fields = tuple(expect.allow_nullable_fields) + tuple(
+        expect.allow_missing_fields
+    )
+    for field_name, offsets in _get_field_offsets(
             metadata_type=metadata_type_definition
-        ):
-            if (
+    ):
+        if (
                 # If a field is required...
                 (field_name not in expect.allow_missing_fields)
                 and
                 # ... and none of its offsets are in the document
                 not any(_has_offset(prepared_doc, offset) for offset in offsets)
-            ):
-                # ... warn them.
-                product_name = (
-                    product_definition.get("name")
-                    if product_definition
-                    else dataset.product.name
+        ):
+            # ... warn them.
+            readable_offsets = " or ".join("->".join(offset) for offset in offsets)
+            yield msg.warning(
+                "missing_field",
+                f"Dataset is missing field {field_name!r} "
+                f"for type {metadata_type_definition['name']!r}",
+                hint=f"Expected at {readable_offsets}",
+            )
+            continue
+
+        if field_name not in all_nullable_fields:
+            value = None
+            for offset in offsets:
+                value = toolz.get_in(offset, prepared_doc)
+            if value is None:
+                yield msg.info(
+                    "null_field",
+                    f"Value is null for configured field {field_name!r}",
                 )
-                readable_offsets = " or ".join("->".join(offset) for offset in offsets)
-                yield _warning(
-                    "missing_field",
-                    f"Dataset is missing field {field_name!r} "
-                    f"for type {metadata_type_definition['name']!r}",
-                    hint=f"Expected at {readable_offsets}",
+
+
+def _validate_ds_against_data(dataset: Eo3DatasetDocBase,
+                              readable_location: str,
+                              required_measurements: Dict[str, "ExpectedMeasurement"],
+                              msg: ContextualMessager):
+    # For each measurement, try to load it.
+    # If loadable, validate measurements exist and match expectations.
+    dataset_location = dataset.locations[0] if dataset.locations else readable_location
+    for name, measurement in dataset.measurements.items():
+        full_path = uri_resolve(dataset_location, measurement.path)
+        expected_measurement = required_measurements.get(name)
+
+        band = measurement.band or 1
+        with rasterio.open(full_path) as ds:
+            ds: DatasetReader
+
+            if band not in ds.indexes:
+                yield msg.error(
+                    "incorrect_band",
+                    f"Measurement {name!r} file contains no rio index {band!r}.",
+                    hint=f"contains indexes {ds.indexes!r}",
                 )
                 continue
 
-            if field_name not in all_nullable_fields:
-                value = None
-                for offset in offsets:
-                    value = toolz.get_in(offset, prepared_doc)
-                if value is None:
-                    yield _info(
-                        "null_field",
-                        f"Value is null for configured field {field_name!r}",
+            if not expected_measurement:
+                # The measurement is not in the product definition
+                #
+                # This is only informational because a product doesn't have to define all
+                # measurements that the datasets contain.
+                #
+                # This is historically because dataset documents reflect the measurements that
+                # are stored on disk, which can differ. But products define the set of measurments
+                # that are mandatory in every dataset.
+                #
+                # (datasets differ when, for example, sensors go offline, or when there's on-disk
+                #  measurements like panchromatic that GA doesn't want in their product definitions)
+                if required_measurements:
+                    yield msg.info(
+                        "unspecified_measurement",
+                        f"Measurement {name} is not in the product",
                     )
-
-    dataset_location = dataset.locations[0] if dataset.locations else readable_location
-
-    # If we have a location:
-    # For each measurement, try to load it.
-    # If loadable:
-    if thorough:
-        for name, measurement in dataset.measurements.items():
-            full_path = uri_resolve(dataset_location, measurement.path)
-            expected_measurement = required_measurements.get(name)
-
-            band = measurement.band or 1
-            with rasterio.open(full_path) as ds:
-                ds: DatasetReader
-
-                if band not in ds.indexes:
+            else:
+                expected_dtype = expected_measurement.dtype
+                band_dtype = ds.dtypes[band - 1]
+                # TODO: NaN handling
+                if expected_dtype != band_dtype:
                     yield _error(
-                        "incorrect_band",
-                        f"Measurement {name!r} file contains no rio index {band!r}.",
-                        hint=f"contains indexes {ds.indexes!r}",
+                        "different_dtype",
+                        f"{name} dtype: "
+                        f"product {expected_dtype!r} != dataset {band_dtype!r}",
                     )
+
+                ds_nodata = ds.nodatavals[band - 1]
+
+                # If the dataset is missing 'nodata', we can allow anything in product 'nodata'.
+                # (In ODC, nodata might be a fill value for loading data.)
+                if ds_nodata is None:
                     continue
 
-                if not expected_measurement:
-                    # The measurement is not in the product definition
-                    #
-                    # This is only informational because a product doesn't have to define all
-                    # measurements that the datasets contain.
-                    #
-                    # This is historically because dataset documents reflect the measurements that
-                    # are stored on disk, which can differ. But products define the set of measurments
-                    # that are mandatory in every dataset.
-                    #
-                    # (datasets differ when, for example, sensors go offline, or when there's on-disk
-                    #  measurements like panchromatic that GA doesn't want in their product definitions)
-                    if required_measurements:
-                        yield _info(
-                            "unspecified_measurement",
-                            f"Measurement {name} is not in the product",
-                        )
-                else:
-                    expected_dtype = expected_measurement.dtype
-                    band_dtype = ds.dtypes[band - 1]
-                    # TODO: NaN handling
-                    if expected_dtype != band_dtype:
-                        yield _error(
-                            "different_dtype",
-                            f"{name} dtype: "
-                            f"product {expected_dtype!r} != dataset {band_dtype!r}",
-                        )
-
-                    ds_nodata = ds.nodatavals[band - 1]
-
-                    # If the dataset is missing 'nodata', we can allow anything in product 'nodata'.
-                    # (In ODC, nodata might be a fill value for loading data.)
-                    if ds_nodata is None:
-                        continue
-
-                    # Otherwise check that nodata matches.
-                    expected_nodata = expected_measurement.nodata
-                    if expected_nodata != ds_nodata and not (
+                # Otherwise check that nodata matches.
+                expected_nodata = expected_measurement.nodata
+                if expected_nodata != ds_nodata and not (
                         _is_nan(expected_nodata) and _is_nan(ds_nodata)
-                    ):
-                        yield _error(
-                            "different_nodata",
-                            f"{name} nodata: "
-                            f"product {expected_nodata !r} != dataset {ds_nodata !r}",
-                        )
+                ):
+                    yield msg.error(
+                        "different_nodata",
+                        f"{name} nodata: "
+                        f"product {expected_nodata !r} != dataset {ds_nodata !r}",
+                    )
 
 
 def _has_offset(doc: Dict, offset: List[str]) -> bool:
@@ -981,10 +1032,10 @@ def _differences_as_hint(product_diffs):
     return indent("\n".join(product_diffs), prefix="\t")
 
 
-def _validate_stac_properties(dataset: Eo3DatasetDocBase):
+def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
     for name, value in dataset.properties.items():
         if name not in dataset.properties.KNOWN_PROPERTIES:
-            yield _warning("unknown_property", f"Unknown stac property {name!r}")
+            yield msg.warning("unknown_property", f"Unknown stac property {name!r}")
 
         else:
             normaliser = dataset.properties.KNOWN_PROPERTIES.get(name)
@@ -1007,7 +1058,7 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase):
                         value = default_utc(value)
 
                     if not isinstance(value, type(normalised_value)):
-                        yield _warning(
+                        yield msg.warning(
                             "property_type",
                             f"Value {value} expected to be "
                             f"{type(normalised_value).__name__!r} (got {type(value).__name__!r})",
@@ -1022,13 +1073,13 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase):
                                 f"Property {value!r} expected to be {normalised_value!r}",
                             )
                 except ValueError as e:
-                    yield _error("invalid_property", f"{name!r}: {e.args[0]}")
+                    yield msg.error("invalid_property", f"{name!r}: {e.args[0]}")
 
     if "odc:producer" in dataset.properties:
         producer = dataset.properties["odc:producer"]
         # We use domain name to avoid arguing about naming conventions ('ga' vs 'geoscience-australia' vs ...)
         if "." not in producer:
-            yield _warning(
+            yield msg.warning(
                 "producer_domain",
                 "Property 'odc:producer' should be the organisation's domain name. Eg. 'ga.gov.au'",
             )
@@ -1036,7 +1087,7 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase):
     # This field is a little odd, but is expected by the current version of ODC.
     # (from discussion with Kirill)
     if not dataset.properties.get("odc:file_format"):
-        yield _warning(
+        yield msg.warning(
             "global_file_format",
             "Property 'odc:file_format' is empty",
             hint="Usually 'GeoTIFF'",
@@ -1050,53 +1101,56 @@ def _is_nan(v):
     return isinstance(v, float) and math.isnan(v)
 
 
-def _validate_geo(dataset: Eo3DatasetDocBase, expect_geometry: bool = True):
-    has_some_geo = _has_some_geo(dataset)
-    if not has_some_geo and expect_geometry:
-        yield _info("non_geo", "No geo information in dataset")
+def _validate_geo(dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_geometry: bool = True):
+    if expect_geometry and (dataset.geometry is not None or dataset.grids or dataset.crs):
+        yield msg.info("non_geo", "No geo information in dataset")
         return
 
+    # Geometry is recommended but not required
     if dataset.geometry is None:
         if expect_geometry:
-            yield _info("incomplete_geo", "Dataset has some geo fields but no geometry")
+            yield msg.info("incomplete_geo", "Dataset has some geo fields but no geometry")
     elif not dataset.geometry.is_valid:
-        yield _error(
+        yield msg.error(
             "invalid_geometry",
             f"Geometry is not a valid shape: {explain_validity(dataset.geometry)!r}",
         )
+        return
 
-    # TODO: maybe we'll allow no grids: backwards compat with old metadata.
+    # Grids is validated by schema - but is required
     if not dataset.grids:
-        yield _error("incomplete_grids", "Dataset has some geo fields but no grids")
+        yield msg.error("incomplete_grids", "Dataset has some geo fields but no grids")
 
+    # CRS required
     if not dataset.crs:
-        yield _error("incomplete_crs", "Dataset has some geo fields but no crs")
+        yield msg.error("incomplete_crs", "Dataset has some geo fields but no crs")
     else:
         # We only officially support epsg code (recommended) or wkt.
+        # TODO Anything supported by odc-geo
         if dataset.crs.lower().startswith("epsg:"):
             try:
                 CRS.from_string(dataset.crs)
             except CRSError as e:
-                yield _error("invalid_crs_epsg", e.args[0])
+                yield msg.error("invalid_crs_epsg", e.args[0])
 
             if dataset.crs.lower() != dataset.crs:
-                yield _warning("mixed_crs_case", "Recommend lowercase 'epsg:' prefix")
+                yield msg.warning("mixed_crs_case", "Recommend lowercase 'epsg:' prefix")
         else:
             wkt_crs = None
             try:
                 wkt_crs = CRS.from_wkt(dataset.crs)
             except CRSError as e:
-                yield _error(
+                yield msg.error(
                     "invalid_crs",
                     f"Expect either an epsg code or a WKT string: {e.args[0]}",
                 )
 
             if wkt_crs and wkt_crs.is_epsg_code:
-                yield _warning(
+                yield msg.warning(
                     "non_epsg",
                     f"Prefer an EPSG code to a WKT when possible. (Can change CRS to 'epsg:{wkt_crs.to_epsg()}')",
                 )
-
+    return
 
 def _has_some_geo(dataset: Eo3DatasetDocBase) -> bool:
     return dataset.geometry is not None or dataset.grids or dataset.crs
