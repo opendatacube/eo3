@@ -215,8 +215,6 @@ class Eo3DictBase(collections.abc.MutableMapping):
         if key not in self.KNOWN_PROPERTIES:
             warnings.warn(
                 f"Unknown Stac property {key!r}. "
-                f"If this is valid property, please tell us on Github here so we can add it: "
-                f"\n\t{_github_suggest_new_property_url(key, value)}"
             )
 
         if value is not None:

@@ -1,13 +1,8 @@
-import re
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Sequence, Set, Union
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import unquote, urlparse
 
-from eo3 import utils
-from eo3.model import DEA_URI_PREFIX, Location
-from eo3.properties import Eo3DictBase, Eo3InterfaceBase
-from eo3.uris import is_url, is_vsipath, normalise_path, register_scheme, uri_resolve
+from eo3.model import Location
+from eo3.uris import is_url, is_vsipath, normalise_path, register_scheme
 
 # Needed when packaging zip or tar files.
 register_scheme("zip", "tar")
@@ -25,22 +20,6 @@ def _strip_major_version(version: str) -> str:
     ''
     """
     return ".".join(version.split(".")[1:])
-
-
-class LazyDatasetLocation:
-    """The location of the dataset as indexed into ODC. Defaults to the metadata path."""
-
-    def __get__(self, c: "NamingConventions", owner) -> str:
-        if not c.collection_prefix:
-            raise ValueError(
-                "collection_prefix is required if you're not setting a "
-                "dataset_location or metadata_path!"
-            )
-
-        offset = c.dataset_folder
-        if Path(offset).is_absolute():
-            raise ValueError("Dataset offset is expected to be relative to collection")
-        return f"{c.collection_prefix}/{offset}/"
 
 
 class MissingRequiredFields(ValueError):
