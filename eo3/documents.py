@@ -49,7 +49,7 @@ def is_supported_document_type(path):
     )
 
 
-def find_metadata_path(dataset_path, system_names = None):
+def find_metadata_path(dataset_path, system_names=None):
     """
     Find a metadata path for a given input/dataset path.
 
@@ -105,10 +105,14 @@ def _find_any_metadata_suffix(path):
     return existing_paths[0]
 
 
-def find_and_read_documents(*paths: Path, system_names=None) -> Generator[Tuple[Path, Dict], None, None]:
+def find_and_read_documents(
+    *paths: Path, system_names=None
+) -> Generator[Tuple[Path, Dict], None, None]:
     # TODO EODATASETS: default system_names no longer include 'ga-md'
     # Scan all paths immediately so we can fail fast if some are wrong.
-    metadata_paths = [(path, find_metadata_path(path, system_names=system_names)) for path in paths]
+    metadata_paths = [
+        (path, find_metadata_path(path, system_names=system_names)) for path in paths
+    ]
 
     missing_paths = [path for (path, md) in metadata_paths if md is None]
     if missing_paths:

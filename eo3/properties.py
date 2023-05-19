@@ -4,9 +4,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from datetime import datetime
 from enum import Enum, EnumMeta
-from textwrap import dedent
-from typing import Any, Callable, Dict, Mapping, Optional, Set, Tuple, Union
-from urllib.parse import urlencode
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 
 import ciso8601
 from ruamel.yaml.timestamp import TimeStamp as RuamelTimeStamp
@@ -213,9 +211,7 @@ class Eo3DictBase(collections.abc.MutableMapping):
         :argument expect_override: We expect to overwrite a property, so don't produce a warning or error.
         """
         if key not in self.KNOWN_PROPERTIES:
-            warnings.warn(
-                f"Unknown Stac property {key!r}. "
-            )
+            warnings.warn(f"Unknown Stac property {key!r}. ")
 
         if value is not None:
             normalise = self.KNOWN_PROPERTIES.get(key)

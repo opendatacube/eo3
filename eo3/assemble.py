@@ -1,36 +1,11 @@
 """
 API for easily writing an ODC Dataset
 """
-import shutil
-import tempfile
-import uuid
-import warnings
-from copy import deepcopy
-from enum import Enum, auto
-from pathlib import Path, PosixPath, PurePath
-from textwrap import dedent
-from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
+from pathlib import PosixPath
 from urllib.parse import urlsplit
 
-import numpy
-import rasterio
-import xarray
-from rasterio import DatasetReader
-from rasterio.crs import CRS
-from rasterio.enums import Resampling
-from ruamel.yaml.comments import CommentedMap
-from shapely.geometry.base import BaseGeometry
-
-import eo3
-from eo3 import documents, images, serialise, validate
-from eo3.documents import find_and_read_documents
-from eo3.images import FileWrite, GridSpec, MeasurementBundler, ValidDataMethod
-from eo3.model import AccessoryDoc, Eo3DatasetDocBase, Location, ProductDoc
-from eo3.names import resolve_location
-from eo3.properties import Eo3DictBase, Eo3InterfaceBase
-from eo3.uris import is_url, uri_resolve
-from eo3.validate import Level, ValidationExpectations, ValidationMessage
-from eo3.verify import PackageChecksum
+from eo3.uris import uri_resolve
+from eo3.validate import ValidationMessage
 
 
 class AssemblyError(Exception):

@@ -1,20 +1,25 @@
-import operator
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, Mapping, Sequence, Union
 
 import numpy as np
 import pytest
 import rasterio
-from click.testing import CliRunner, Result
 from rasterio.io import DatasetWriter
 
-from eo3 import serialise, validate
-from eo3.model import Eo3DatasetDocBase
-
-from eo3.validate import DocKind, filename_doc_kind, guess_kind_from_contents, ValidationMessages, Level, \
-    ValidationMessage, validate_paths, validate_dataset, ValidationExpectations, validate_product, \
-    validate_metadata_type
+from eo3 import validate
+from eo3.validate import (
+    DocKind,
+    Level,
+    ValidationExpectations,
+    ValidationMessage,
+    ValidationMessages,
+    filename_doc_kind,
+    guess_kind_from_contents,
+    validate_dataset,
+    validate_metadata_type,
+    validate_product,
+)
 
 Doc = Union[Dict, Path]
 
@@ -336,9 +341,7 @@ def test_crs_as_wkt(example_metadata: Dict):
     assert "change CRS to 'epsg:32655'" in msgs.warning_text()
 
 
-def test_valid_with_product_doc(
-        l1_ls8_folder_md_expected: Dict, product: Dict
-) -> Path:
+def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) -> Path:
     """When a product is specified, it will validate that the measurements match the product"""
 
     # Document is valid on its own.
@@ -352,9 +355,14 @@ def test_valid_with_product_doc(
 
     # Remove some expected measurements from product - should get warnings now
     product["default_allowances"]["allow_extra_measurements"] = [
-        "cirrus", "coastal_aerosol",
-        "red", "green", "blue",
-        "nir", "swir_1", "swir_2",
+        "cirrus",
+        "coastal_aerosol",
+        "red",
+        "green",
+        "blue",
+        "nir",
+        "swir_1",
+        "swir_2",
         "panchromatic",
     ]
     msgs = MessageCatcher(
@@ -365,34 +373,33 @@ def test_valid_with_product_doc(
     assert "lwir_1" in msgs.warning_text()
     assert not msgs.errors()
 
-    expect = ValidationExpectations(allow_extra_measurements=[
-        "lwir_1", "lwir_2", "quality",
-    ])
+    expect = ValidationExpectations(
+        allow_extra_measurements=[
+            "lwir_1",
+            "lwir_2",
+            "quality",
+        ]
+    )
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
-                         product_definition=product, expect=expect)
+        validate_dataset(
+            l1_ls8_folder_md_expected, product_definition=product, expect=expect
+        )
     )
     assert not msgs.errors()
 
 
-def test_odc_product_schema(
-    product: Dict
-):
+def test_odc_product_schema(product: Dict):
     """
     If a product fails against ODC's schema, it's an error.
     """
     # A missing field will fail the schema check from ODC.
     # (these cannot be added to ODC so are a hard validation failure)
     del product["metadata"]
-    msgs = MessageCatcher(
-        validate_product(product)
-    )
+    msgs = MessageCatcher(validate_product(product))
     assert "document_schema" in msgs.error_text()
 
 
-def test_warn_bad_product_license(
-    l1_ls8_metadata_path: Path, product: Dict
-):
+def test_warn_bad_product_license(l1_ls8_metadata_path: Path, product: Dict):
     # Missing license is a warning.
     del product["license"]
     msgs = MessageCatcher(validate_product(product))
@@ -412,7 +419,9 @@ def test_warn_duplicate_measurement_name(
     product = l1_ls8_product
     orig_measurements = product["measurements"]
     # We have the "blue" measurement twice.
-    product["measurements"] = orig_measurements + [dict(name="blue", dtype="uint8", units="1", nodata=255)]
+    product["measurements"] = orig_measurements + [
+        dict(name="blue", dtype="uint8", units="1", nodata=255)
+    ]
 
     msgs = MessageCatcher(validate_product(product))
     assert "duplicate_measurement_name" in msgs.error_text()
@@ -420,17 +429,17 @@ def test_warn_duplicate_measurement_name(
 
     # An *alias* clashes with the *name* of a measurement.
     product["measurements"] = orig_measurements + [
-            dict(
-                name="azul",
-                aliases=[
-                    "icecream",
-                    # Clashes with the *name* of a measurement.
-                    "blue",
-                ],
-                units="1",
-                dtype="uint8",
-                nodata=255,
-            ),
+        dict(
+            name="azul",
+            aliases=[
+                "icecream",
+                # Clashes with the *name* of a measurement.
+                "blue",
+            ],
+            units="1",
+            dtype="uint8",
+            nodata=255,
+        ),
     ]
     msgs = MessageCatcher(validate_product(product))
     assert "duplicate_measurement_name" in msgs.error_text()
@@ -462,14 +471,17 @@ def test_dtype_compare_with_product_doc(
 ):
     """'thorough' validation should check the dtype of measurements against the product"""
 
-    l1_ls8_product["measurements"] = [dict(name="blue", dtype="uint8", units="1", nodata=255)]
+    l1_ls8_product["measurements"] = [
+        dict(name="blue", dtype="uint8", units="1", nodata=255)
+    ]
 
     # When thorough, the dtype and nodata are wrong
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
+        validate_dataset(
+            l1_ls8_folder_md_expected,
             product_definition=l1_ls8_product,
             readable_location=l1_ls8_metadata_path,
-            thorough=True
+            thorough=True,
         )
     )
     err_text = msgs.error_text()
@@ -486,18 +498,22 @@ def test_nodata_compare_with_product_doc(
     """'thorough' validation should check the nodata of measurements against the product"""
 
     # Remake the tiff with a 'nodata' set.
-    blue_tif = l1_ls8_metadata_path.parent / l1_ls8_folder_md_expected["measurements"]["blue"]["path"]
+    blue_tif = (
+        l1_ls8_metadata_path.parent
+        / l1_ls8_folder_md_expected["measurements"]["blue"]["path"]
+    )
     _create_dummy_tif(
         blue_tif,
         dtype="uint16",
         nodata=65535,
     )
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
-                         product_definition=l1_ls8_product,
-                         readable_location=l1_ls8_metadata_path,
-                         thorough=True
-                         )
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            product_definition=l1_ls8_product,
+            readable_location=l1_ls8_metadata_path,
+            thorough=True,
+        )
     )
     assert not msgs.errors()
     assert not msgs.warnings()
@@ -506,23 +522,27 @@ def test_nodata_compare_with_product_doc(
     # Override blue definition with invalid nodata value.
     _measurement(l1_ls8_product, "blue")["nodata"] = 255
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
-                         product_definition=l1_ls8_product,
-                         readable_location=l1_ls8_metadata_path,
-                         thorough=True
-                         )
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            product_definition=l1_ls8_product,
+            readable_location=l1_ls8_metadata_path,
+            thorough=True,
+        )
     )
     assert "different_nodata" in msgs.error_text()
 
 
 def test_measurements_compare_with_nans(
-        l1_ls8_metadata_path: str,
-        l1_ls8_product: Dict,
-        l1_ls8_folder_md_expected: Dict,
+    l1_ls8_metadata_path: str,
+    l1_ls8_product: Dict,
+    l1_ls8_folder_md_expected: Dict,
 ):
     """When dataset and product have NaN nodata values, it should handle them correctly"""
     product = l1_ls8_product
-    blue_tif = l1_ls8_metadata_path.parent / l1_ls8_folder_md_expected["measurements"]["blue"]["path"]
+    blue_tif = (
+        l1_ls8_metadata_path.parent
+        / l1_ls8_folder_md_expected["measurements"]["blue"]["path"]
+    )
 
     # When both are NaN, it should be valid
     blue = _measurement(product, "blue")
@@ -531,11 +551,12 @@ def test_measurements_compare_with_nans(
     _create_dummy_tif(blue_tif, nodata=float("NaN"))
 
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
-                         product_definition=l1_ls8_product,
-                         readable_location=l1_ls8_metadata_path,
-                         thorough=True
-                         )
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            product_definition=l1_ls8_product,
+            readable_location=l1_ls8_metadata_path,
+            thorough=True,
+        )
     )
     assert not msgs.errors()
     assert not msgs.warnings()
@@ -544,11 +565,12 @@ def test_measurements_compare_with_nans(
     # ODC can also represent NaNs as strings due to json's lack of NaN
     blue["nodata"] = "NaN"
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
-                         product_definition=l1_ls8_product,
-                         readable_location=l1_ls8_metadata_path,
-                         thorough=True
-                         )
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            product_definition=l1_ls8_product,
+            readable_location=l1_ls8_metadata_path,
+            thorough=True,
+        )
     )
     assert not msgs.errors()
     assert not msgs.warnings()
@@ -557,11 +579,12 @@ def test_measurements_compare_with_nans(
     # When product is set, dataset is NaN, they no longer match.
     blue["nodata"] = 0
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected,
-                         product_definition=l1_ls8_product,
-                         readable_location=l1_ls8_metadata_path,
-                         thorough=True
-                         )
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            product_definition=l1_ls8_product,
+            readable_location=l1_ls8_metadata_path,
+            thorough=True,
+        )
     )
     errtxt = msgs.error_text()
     assert "different_nodata" in errtxt
@@ -640,9 +663,7 @@ def test_complains_about_measurement_lists(
     """
 
     l1_ls8_product["measurements"] = {"a": {}}
-    msgs = MessageCatcher(
-        validate_product(l1_ls8_product)
-    )
+    msgs = MessageCatcher(validate_product(l1_ls8_product))
     assert "measurements_list" in msgs.error_text()
 
 
@@ -664,9 +685,7 @@ def test_complains_about_product_not_matching(
     assert "unknown_product" in msgs.error_text()
 
 
-def test_complains_about_impossible_nodata_vals(
-    product: Dict
-):
+def test_complains_about_impossible_nodata_vals(product: Dict):
     """Complain if a product nodata val cannot be represented in the dtype"""
 
     product["measurements"].append(
@@ -678,9 +697,7 @@ def test_complains_about_impossible_nodata_vals(
             nodata=-999,
         )
     )
-    msgs = MessageCatcher(
-        validate_product(product)
-    )
+    msgs = MessageCatcher(validate_product(product))
     assert "unsuitable_nodata" in msgs.error_text()
 
 
@@ -690,15 +707,15 @@ def test_complains_when_no_product(
     """When a product is specified, it will validate that the measurements match the product"""
     # Thorough checking should fail when there's no product provided
     msgs = MessageCatcher(
-        validate_dataset(l1_ls8_folder_md_expected, thorough=True, product_definition=None)
+        validate_dataset(
+            l1_ls8_folder_md_expected, thorough=True, product_definition=None
+        )
     )
     assert "no_product" in msgs.error_text()
 
 
 def test_validate_metadata_type(metadata_type: Dict):
-    msgs = MessageCatcher(
-        validate_metadata_type(metadata_type)
-    )
+    msgs = MessageCatcher(validate_metadata_type(metadata_type))
     assert not msgs.errors()
     assert not msgs.warnings()
 

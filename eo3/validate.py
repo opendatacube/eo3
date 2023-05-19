@@ -4,38 +4,33 @@ Validate ODC dataset documents
 import collections
 import enum
 import math
-import multiprocessing
-import os
-import sys
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from textwrap import indent
 from typing import (
-    Counter,
     Dict,
     Generator,
     Iterable,
     List,
+    Mapping,
+    MutableMapping,
     Optional,
     Sequence,
     Set,
     Tuple,
-    Union, MutableMapping, Mapping,
+    Union,
 )
-from urllib.parse import urljoin, urlparse
-from urllib.request import urlopen
+from urllib.parse import urlparse
 
 import attr
 import cattr
 import ciso8601
-import click
 import numpy as np
 import rasterio
 import toolz
 from attr import Factory, define, field, frozen
 from boltons.iterutils import get_path
-from click import echo, secho, style
+from click import echo
 from rasterio import DatasetReader
 from rasterio.crs import CRS
 from rasterio.errors import CRSError
@@ -44,7 +39,7 @@ from shapely.validation import explain_validity
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
 from eo3.model import Eo3DatasetDocBase
-from eo3.ui import bool_style, is_absolute, uri_resolve
+from eo3.ui import is_absolute, uri_resolve
 from eo3.uris import is_url
 from eo3.utils import (
     EO3_SCHEMA,
@@ -81,6 +76,7 @@ class DocKind(enum.Enum):
     legacy_dataset = 5
     # Legacy product config for ingester
     ingestion_config = 6
+
     @property
     def is_legacy(self):
         return self in (self.legacy_dataset, self.ingestion_config)
@@ -174,6 +170,7 @@ def _warning(code: str, reason: str, hint: str = None):
 def _error(code: str, reason: str, hint: str = None):
     return ValidationMessage(Level.error, code, reason, hint=hint)
 
+
 ValidationMessages = Generator[ValidationMessage, None, None]
 
 
@@ -183,18 +180,23 @@ class ContextualMessager:
         self.errors = 0
 
     def info(self, code: str, reason: str, hint: str = None):
-        return ValidationMessage(Level.info, code, reason, hint=hint, context=self.context)
+        return ValidationMessage(
+            Level.info, code, reason, hint=hint, context=self.context
+        )
 
     def warning(self, code: str, reason: str, hint: str = None):
-        return ValidationMessage(Level.warning, code, reason, hint=hint, context=self.context)
+        return ValidationMessage(
+            Level.warning, code, reason, hint=hint, context=self.context
+        )
 
     def error(self, code: str, reason: str, hint: str = None):
         self.errors += 1
-        return ValidationMessage(Level.error, code, reason, hint=hint, context=self.context)
+        return ValidationMessage(
+            Level.error, code, reason, hint=hint, context=self.context
+        )
 
 
 ValidationMessages = Generator[ValidationMessage, None, None]
-
 
 
 # REVISIT: Do we want this here? feels kinda high level, but seems safe.
@@ -275,7 +277,9 @@ def validate_dataset(
         validation_context["product"] = product_definition["name"]
     msg = ContextualMessager(validation_context)
     if thorough and not product_definition:
-        yield msg.error("no_product", "Must supply product definition for thorough validation")
+        yield msg.error(
+            "no_product", "Must supply product definition for thorough validation"
+        )
     if expect.allow_extra_measurements:
         yield msg.warning("extra_measurements", "Extra measurements are deprecated")
     # Validate against schema and deserialise to a (base eo3) dataset doc
@@ -313,20 +317,28 @@ def validate_dataset(
 
     # Validate dataset against product and metadata type definitions
     if product_definition is not None:
-        yield from _validate_ds_to_product(dataset, required_measurements, product_definition,
-                                           allow_extra_measurements=expect.allow_extra_measurements,
-                                           msg=msg)
+        yield from _validate_ds_to_product(
+            dataset,
+            required_measurements,
+            product_definition,
+            allow_extra_measurements=expect.allow_extra_measurements,
+            msg=msg,
+        )
         if msg.errors:
             return
 
     if metadata_type_definition:
-        yield from _validate_ds_to_metadata_type(doc, metadata_type_definition, expect, msg)
+        yield from _validate_ds_to_metadata_type(
+            doc, metadata_type_definition, expect, msg
+        )
         if msg.errors:
             return
 
     if thorough:
         # Validate contents of actual data against measurement metadata
-        yield from _validate_ds_against_data(dataset, readable_location, required_measurements, msg)
+        yield from _validate_ds_against_data(
+            dataset, readable_location, required_measurements, msg
+        )
 
 
 def _validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMessages:
@@ -376,17 +388,19 @@ def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
             )
 
 
-def _validate_ds_to_product(dataset: Eo3DatasetDocBase,
-                            required_measurements: MutableMapping[str, "ExpectedMeasurement"],
-                            product_definition: Mapping,
-                            allow_extra_measurements: Sequence[str],
-                            msg: ContextualMessager):
+def _validate_ds_to_product(
+    dataset: Eo3DatasetDocBase,
+    required_measurements: MutableMapping[str, "ExpectedMeasurement"],
+    product_definition: Mapping,
+    allow_extra_measurements: Sequence[str],
+    msg: ContextualMessager,
+):
     required_measurements.update(
         {
             m.name: m
             for m in map(
-            ExpectedMeasurement.from_definition,
-            product_definition.get("measurements") or (),
+                ExpectedMeasurement.from_definition,
+                product_definition.get("measurements") or (),
             )
         }
     )
@@ -411,9 +425,7 @@ def _validate_ds_to_product(dataset: Eo3DatasetDocBase,
         {m["name"] for m in product_definition.get("measurements") or ()}
     )
     # Remove the measurements that are allowed to be extra.
-    measurements_not_in_product.difference_update(
-        allow_extra_measurements or set()
-    )
+    measurements_not_in_product.difference_update(allow_extra_measurements or set())
 
     if measurements_not_in_product:
         things = ", ".join(sorted(measurements_not_in_product))
@@ -424,10 +436,12 @@ def _validate_ds_to_product(dataset: Eo3DatasetDocBase,
         )
 
 
-def _validate_ds_to_metadata_type(doc: Dict,
-                                  metadata_type_definition: Dict,
-                                  expect: ValidationExpectations,
-                                  msg: ContextualMessager):
+def _validate_ds_to_metadata_type(
+    doc: Dict,
+    metadata_type_definition: Dict,
+    expect: ValidationExpectations,
+    msg: ContextualMessager,
+):
     # Datacube does certain transforms on an eo3 doc before storage.
     # We need to do the same, as the fields will be read from the storage.
     prepared_doc = prep_eo3(doc)
@@ -436,14 +450,14 @@ def _validate_ds_to_metadata_type(doc: Dict,
         expect.allow_missing_fields
     )
     for field_name, offsets in _get_field_offsets(
-            metadata_type=metadata_type_definition
+        metadata_type=metadata_type_definition
     ):
         if (
-                # If a field is required...
-                (field_name not in expect.allow_missing_fields)
-                and
-                # ... and none of its offsets are in the document
-                not any(_has_offset(prepared_doc, offset) for offset in offsets)
+            # If a field is required...
+            (field_name not in expect.allow_missing_fields)
+            and
+            # ... and none of its offsets are in the document
+            not any(_has_offset(prepared_doc, offset) for offset in offsets)
         ):
             # ... warn them.
             readable_offsets = " or ".join("->".join(offset) for offset in offsets)
@@ -466,10 +480,12 @@ def _validate_ds_to_metadata_type(doc: Dict,
                 )
 
 
-def _validate_ds_against_data(dataset: Eo3DatasetDocBase,
-                              readable_location: str,
-                              required_measurements: Dict[str, "ExpectedMeasurement"],
-                              msg: ContextualMessager):
+def _validate_ds_against_data(
+    dataset: Eo3DatasetDocBase,
+    readable_location: str,
+    required_measurements: Dict[str, "ExpectedMeasurement"],
+    msg: ContextualMessager,
+):
     # For each measurement, try to load it.
     # If loadable, validate measurements exist and match expectations.
     dataset_location = dataset.locations[0] if dataset.locations else readable_location
@@ -527,7 +543,7 @@ def _validate_ds_against_data(dataset: Eo3DatasetDocBase,
                 # Otherwise check that nodata matches.
                 expected_nodata = expected_measurement.nodata
                 if expected_nodata != ds_nodata and not (
-                        _is_nan(expected_nodata) and _is_nan(ds_nodata)
+                    _is_nan(expected_nodata) and _is_nan(ds_nodata)
                 ):
                     yield msg.error(
                         "different_nodata",
@@ -1102,19 +1118,22 @@ def _is_nan(v):
     return isinstance(v, float) and math.isnan(v)
 
 
-def _validate_geo(dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_geometry: bool = True):
+def _validate_geo(
+    dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_geometry: bool = True
+):
     # If we're not expecting geometry, and there's no geometry, then there's nothing to see here.
     if not expect_geometry and (
-            dataset.geometry is None
-            and not dataset.grids
-            and not dataset.crs):
+        dataset.geometry is None and not dataset.grids and not dataset.crs
+    ):
         yield msg.info("non_geo", "No geo information in dataset")
         return
 
     # Geometry is recommended but not required
     if dataset.geometry is None:
         if expect_geometry:
-            yield msg.info("incomplete_geo", "Dataset has some geo fields but no geometry")
+            yield msg.info(
+                "incomplete_geo", "Dataset has some geo fields but no geometry"
+            )
     elif not dataset.geometry.is_valid:
         yield msg.error(
             "invalid_geometry",
@@ -1139,7 +1158,9 @@ def _validate_geo(dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_ge
                 yield msg.error("invalid_crs_epsg", e.args[0])
 
             if dataset.crs.lower() != dataset.crs:
-                yield msg.warning("mixed_crs_case", "Recommend lowercase 'epsg:' prefix")
+                yield msg.warning(
+                    "mixed_crs_case", "Recommend lowercase 'epsg:' prefix"
+                )
         else:
             wkt_crs = None
             try:

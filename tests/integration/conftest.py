@@ -79,7 +79,9 @@ def l1_c2_ls8_folder(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def l1_ls8_metadata_path(l1_ls8_folder: Path, l1_ls8_dataset: Eo3DatasetDocBase) -> Path:
+def l1_ls8_metadata_path(
+    l1_ls8_folder: Path, l1_ls8_dataset: Eo3DatasetDocBase
+) -> Path:
     path = l1_ls8_folder / f"{l1_ls8_dataset.label}.odc-metadata.yaml"
     serialise.to_path(path, l1_ls8_dataset)
     return path
