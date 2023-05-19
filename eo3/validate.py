@@ -274,8 +274,10 @@ def validate_dataset(
         expect = expect.with_document_overrides(product_definition)
         validation_context["product"] = product_definition["name"]
     msg = ContextualMessager(validation_context)
+    if thorough and not product_definition:
+        yield msg.error("no_product", "Must supply product definition for thorough validation")
     if expect.allow_extra_measurements:
-        msg.warning("Extra measurements are deprecated")
+        yield msg.warning("extra_measurements", "Extra measurements are deprecated")
     # Validate against schema and deserialise to a (base eo3) dataset doc
     yield from _validate_ds_to_schema(doc, msg)
     if msg.errors:
@@ -311,7 +313,9 @@ def validate_dataset(
 
     # Validate dataset against product and metadata type definitions
     if product_definition is not None:
-        yield from _validate_ds_to_product(dataset, required_measurements, product_definition, msg)
+        yield from _validate_ds_to_product(dataset, required_measurements, product_definition,
+                                           allow_extra_measurements=expect.allow_extra_measurements,
+                                           msg=msg)
         if msg.errors:
             return
 
@@ -1034,10 +1038,7 @@ def _differences_as_hint(product_diffs):
 
 def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
     for name, value in dataset.properties.items():
-        if name not in dataset.properties.KNOWN_PROPERTIES:
-            yield msg.warning("unknown_property", f"Unknown stac property {name!r}")
-
-        else:
+        if name in dataset.properties.KNOWN_PROPERTIES:
             normaliser = dataset.properties.KNOWN_PROPERTIES.get(name)
             if normaliser and value is not None:
                 try:
@@ -1074,7 +1075,7 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessage
                             )
                 except ValueError as e:
                     yield msg.error("invalid_property", f"{name!r}: {e.args[0]}")
-
+        # else: warning for unknown property?
     if "odc:producer" in dataset.properties:
         producer = dataset.properties["odc:producer"]
         # We use domain name to avoid arguing about naming conventions ('ga' vs 'geoscience-australia' vs ...)
@@ -1102,7 +1103,11 @@ def _is_nan(v):
 
 
 def _validate_geo(dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_geometry: bool = True):
-    if expect_geometry and (dataset.geometry is not None or dataset.grids or dataset.crs):
+    # If we're not expecting geometry, and there's no geometry, then there's nothing to see here.
+    if not expect_geometry and (
+            dataset.geometry is None
+            and not dataset.grids
+            and not dataset.crs):
         yield msg.info("non_geo", "No geo information in dataset")
         return
 
@@ -1152,249 +1157,10 @@ def _validate_geo(dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_ge
                 )
     return
 
+
 def _has_some_geo(dataset: Eo3DatasetDocBase) -> bool:
     return dataset.geometry is not None or dataset.grids or dataset.crs
 
 
-def display_result_console(
-    url: str, is_valid: bool, messages: List[ValidationMessage], quiet=False
-):
-    """
-    Print validation messages to the Console (using colour if available).
-    """
-    # Otherwise console output, with color if possible.
-    if messages or not quiet:
-        echo(f"{bool_style(is_valid)} {url}")
-
-    for message in messages:
-        hint = ""
-        if message.hint:
-            # Indent the hint if it's multi-line.
-            if "\n" in message.hint:
-                hint = "\t\tHint:\n"
-                hint += indent(message.hint, "\t\t" + (" " * 5))
-            else:
-                hint = f"\t\t(Hint: {message.hint})"
-        s = {
-            Level.info: dict(),
-            Level.warning: dict(fg="yellow"),
-            Level.error: dict(fg="red"),
-        }
-        displayable_code = style(f"{message.code}", **s[message.level], bold=True)
-        echo(f"\t{message.level.name[0].upper()} {displayable_code} {message.reason}")
-        if hint:
-            echo(hint)
-
-
-def display_result_github(url: str, is_valid: bool, messages: List[ValidationMessage]):
-    """
-    Print validation messages using Github Action's command language for warnings/errors.
-    """
-    echo(f"{bool_style(is_valid)} {url}")
-    for message in messages:
-        hint = ""
-        if message.hint:
-            # Indent the hint if it's multi-line.
-            if "\n" in message.hint:
-                hint = "\n\nHint:\n"
-                hint += indent(message.hint, (" " * 5))
-            else:
-                hint = f"\n\n(Hint: {message.hint})"
-
-        if message.level == Level.error:
-            code = "::error"
-        else:
-            code = "::warning"
-
-        text = f"{message.reason}{hint}"
-
-        # URL-Encode any newlines
-        text = text.replace("\n", "%0A")
-        # TODO: Get the real line numbers?
-        echo(f"{code} file={url},line=1::{text}")
-
-
-_OUTPUT_WRITERS = dict(
-    plain=display_result_console,
-    quiet=partial(display_result_console, quiet=True),
-    github=display_result_github,
-)
-
-
-@click.command(
-    help=__doc__
-    + """
-Paths can be products, dataset documents, or directories to scan (for files matching
-names '*.odc-metadata.yaml' etc), either local or URLs.
-
-Datasets are validated against matching products that have been scanned already, so specify
-products first, and datasets later, to ensure they can be matched.
-"""
-)
-@click.version_option()
-@click.argument("paths", nargs=-1)
-@click.option(
-    "--warnings-as-errors",
-    "-W",
-    "strict_warnings",
-    is_flag=True,
-    help="Fail if any warnings are produced",
-)
-@click.option(
-    "-f",
-    "--output-format",
-    help="Output format",
-    type=click.Choice(list(_OUTPUT_WRITERS)),
-    # Are we in Github Actions?
-    # Send any warnings/errors in its custom format
-    default="github" if "GITHUB_ACTIONS" in os.environ else "plain",
-    show_default=True,
-)
-@click.option(
-    "--thorough",
-    is_flag=True,
-    help="Attempt to read the data/measurements, and check their properties match",
-)
-@click.option(
-    "--explorer-url",
-    "explorer_url",
-    help="Use product definitions from the given Explorer URL to validate datasets. "
-    'Eg: "https://explorer.dea.ga.gov.au/"',
-)
-@click.option(
-    "--odc",
-    "use_datacube",
-    is_flag=True,
-    help="Use product definitions from datacube to validate datasets",
-)
-@click.option(
-    "-q",
-    "--quiet",
-    is_flag=True,
-    default=False,
-    help="Only print problems, one per line",
-)
-def run(
-    paths: List[str],
-    strict_warnings,
-    quiet,
-    thorough: bool,
-    explorer_url: str,
-    use_datacube: bool,
-    output_format: str,
-):
-    expect = ValidationExpectations()
-    validation_counts: Counter[Level] = collections.Counter()
-    invalid_paths = 0
-    current_location = Path(".").resolve().as_uri() + "/"
-
-    product_definitions = _load_remote_product_definitions(use_datacube, explorer_url)
-
-    if output_format == "plain" and quiet:
-        output_format = "quiet"
-    write_file_report = _OUTPUT_WRITERS[output_format]
-
-    for url, messages in validate_paths(
-        paths,
-        thorough=thorough,
-        expect=expect,
-        product_definitions=product_definitions,
-    ):
-        if url.startswith(current_location):
-            url = url[len(current_location) :]
-
-        levels = collections.Counter(m.level for m in messages)
-        is_invalid = levels[Level.error] > 0
-        if strict_warnings:
-            is_invalid |= levels[Level.warning] > 0
-
-        if quiet:
-            # Errors/Warnings only. Remove info-level.
-            messages = [m for m in messages if m.level != Level.info]
-
-        if is_invalid:
-            invalid_paths += 1
-
-        for message in messages:
-            validation_counts[message.level] += 1
-
-        write_file_report(
-            url=url,
-            is_valid=not is_invalid,
-            messages=messages,
-        )
-
-    # Print a summary on stderr for humans.
-    if not quiet:
-        result = (
-            style("failure", fg="red", bold=True)
-            if invalid_paths > 0
-            else style("valid", fg="green", bold=True)
-        )
-        secho(f"\n{result}: ", nl=False, err=True)
-        if validation_counts:
-            echo(
-                ", ".join(
-                    f"{v} {k.name}{'s' if v > 1 else ''}"
-                    for k, v in validation_counts.items()
-                ),
-                err=True,
-            )
-        else:
-            secho(f"{len(paths)} paths", err=True)
-
-    sys.exit(invalid_paths)
-
-
-def _load_remote_product_definitions(
-    from_datacube: bool = False,
-    from_explorer_url: Optional[str] = None,
-) -> Dict[str, Dict]:
-    product_definitions = {}
-    # Load any remote products that were asked for.
-    if from_explorer_url:
-        for definition in _load_explorer_product_definitions(from_explorer_url):
-            product_definitions[definition["name"]] = definition
-        secho(f"{len(product_definitions)} Explorer products", err=True)
-
-    if from_datacube:
-        # The normal datacube environment variables can be used to choose alternative configs.
-        # with Datacube(app="eo3-validate") as dc:
-        #    for product in dc.index.products.get_all():
-        #        product_definitions[product.name] = product.definition
-        #
-        # secho(f"{len(product_definitions)} ODC products", err=True)
-        # TODO CORE Cannot just hit ODC here.
-        raise Exception("Cannot pull product from ODC here")
-    return product_definitions
-
-
 def _load_doc(url):
     return list(load_documents(url))
-
-
-def _load_explorer_product_definitions(
-    explorer_url: str,
-    workers: int = 6,
-) -> Generator[Dict, None, None]:
-    """
-    Read all product yamls from the given Explorer instance,
-
-    eg: https://explorer.dea.ga.gov.au/products/ls5_fc_albers.odc-product.yaml
-    """
-    product_urls = [
-        urljoin(explorer_url, f"/products/{name.strip()}.odc-product.yaml")
-        for name in urlopen(urljoin(explorer_url, "products.txt"))  # nosec
-        .read()
-        .decode("utf-8")
-        .split("\n")
-    ]
-    count = 0
-    with multiprocessing.Pool(workers) as pool:
-        for product_definitions in pool.imap_unordered(_load_doc, product_urls):
-            count += 1
-            echo(f"\r{count} Explorer products", nl=False)
-            yield from product_definitions
-        pool.close()
-        pool.join()
-    echo()
