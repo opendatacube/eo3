@@ -18,7 +18,7 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.view import ViewExtension
 from pystac.utils import datetime_to_str
 
-from eo3.model import DatasetDoc, GridDoc
+from eo3.model import Eo3DatasetDocBase, GridDoc
 from eo3.uris import uri_resolve
 
 # Mapping between EO3 field names and STAC properties object field names
@@ -136,7 +136,7 @@ def _lineage_fields(lineage: Dict) -> Dict:
 
 def _odc_links(
     explorer_base_url: str,
-    dataset: DatasetDoc,
+    dataset: Eo3DatasetDocBase,
     collection_url: Optional[str],
 ) -> List[Link]:
     """
@@ -173,7 +173,7 @@ def _odc_links(
         warnings.warn("No collection provided for Stac Item.")
 
 
-def _get_projection(dataset: DatasetDoc) -> Tuple[Optional[int], Optional[str]]:
+def _get_projection(dataset: Eo3DatasetDocBase) -> Tuple[Optional[int], Optional[str]]:
     if dataset.crs is None:
         return None, None
 
@@ -189,7 +189,7 @@ def _get_projection(dataset: DatasetDoc) -> Tuple[Optional[int], Optional[str]]:
 
 
 def eo3_to_stac_properties(
-    dataset: DatasetDoc, crs: Optional[str] = None, title: str = None
+    dataset: Eo3DatasetDocBase, crs: Optional[str] = None, title: str = None
 ) -> Dict:
     """
     Convert EO3 properties dictionary to the Stac equivalent.
@@ -207,7 +207,7 @@ def eo3_to_stac_properties(
 
 
 def to_pystac_item(
-    dataset: DatasetDoc,
+    dataset: Eo3DatasetDocBase,
     stac_item_destination_url: str,
     dataset_location: Optional[str] = None,
     odc_dataset_metadata_url: Optional[str] = None,
@@ -349,7 +349,7 @@ def to_pystac_item(
 
 
 def to_stac_item(
-    dataset: DatasetDoc,
+    dataset: Eo3DatasetDocBase,
     stac_item_destination_url: str,
     dataset_location: Optional[str] = None,
     odc_dataset_metadata_url: Optional[str] = None,

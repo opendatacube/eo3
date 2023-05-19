@@ -38,7 +38,7 @@ from scipy.ndimage import binary_fill_holes
 from shapely.geometry import box
 from shapely.geometry.base import CAP_STYLE, JOIN_STYLE, BaseGeometry
 
-from eo3.model import DatasetDoc, GridDoc, MeasurementDoc
+from eo3.model import Eo3DatasetDocBase, GridDoc, MeasurementDoc
 from eo3.properties import FileFormat
 
 DEFAULT_OVERVIEWS = (8, 16, 32)
@@ -115,7 +115,7 @@ class GridSpec:
     )
 
     @classmethod
-    def from_dataset_doc(cls, ds: DatasetDoc, grid="default") -> "GridSpec":
+    def from_dataset_doc(cls, ds: Eo3DatasetDocBase, grid="default") -> "GridSpec":
         """
         Create from an existing parsed metadata document
 

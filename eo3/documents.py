@@ -24,6 +24,8 @@ _ALL_SUPPORTED_EXTENSIONS = tuple(
     for compression_type in _COMPRESSION_EXTENSIONS
 )
 
+DEFAULT_SYSTEM_NAMES = ("odc-metadata", "agdc-md")
+
 
 def is_supported_document_type(path):
     """
@@ -47,7 +49,7 @@ def is_supported_document_type(path):
     )
 
 
-def find_metadata_path(dataset_path):
+def find_metadata_path(dataset_path, system_names=None):
     """
     Find a metadata path for a given input/dataset path.
 
@@ -55,11 +57,13 @@ def find_metadata_path(dataset_path):
     :rtype: Path
     """
 
+    if system_names is None:
+        system_names = DEFAULT_SYSTEM_NAMES
     # They may have given us a metadata file directly.
     if dataset_path.is_file() and is_supported_document_type(dataset_path):
         return dataset_path
 
-    for system_name in ("odc-metadata", "agdc-md", "ga-md"):
+    for system_name in system_names:
         # Otherwise there may be a sibling file with appended suffix '.ga-md.yaml'.
         expected_name = dataset_path.parent.joinpath(
             f"{dataset_path.stem}.{system_name}"
@@ -83,26 +87,6 @@ def find_metadata_path(dataset_path):
     return None
 
 
-def new_metadata_path(dataset_path):
-    """
-    Get the path where we should write a metadata file for this dataset.
-
-    :type dataset_path: Path
-    :rtype: Path
-    """
-
-    # - A dataset directory expects file 'ga-metadata.yaml'.
-    # - A dataset file expects a sibling file with suffix '.ga-md.yaml'.
-
-    if dataset_path.is_dir():
-        return dataset_path.joinpath("ga-metadata.yaml")
-
-    if dataset_path.is_file():
-        return dataset_path.parent.joinpath(f"{dataset_path.name}.ga-md.yaml")
-
-    raise ValueError(f"Unhandled path type for {dataset_path!r}")
-
-
 def _find_any_metadata_suffix(path):
     """
     Find any metadata files that exist with the given file name/path.
@@ -121,9 +105,14 @@ def _find_any_metadata_suffix(path):
     return existing_paths[0]
 
 
-def find_and_read_documents(*paths: Path) -> Generator[Tuple[Path, Dict], None, None]:
+def find_and_read_documents(
+    *paths: Path, system_names=None
+) -> Generator[Tuple[Path, Dict], None, None]:
+    # TODO EODATASETS: default system_names no longer include 'ga-md'
     # Scan all paths immediately so we can fail fast if some are wrong.
-    metadata_paths = [(path, find_metadata_path(path)) for path in paths]
+    metadata_paths = [
+        (path, find_metadata_path(path, system_names=system_names)) for path in paths
+    ]
 
     missing_paths = [path for (path, md) in metadata_paths if md is None]
     if missing_paths:

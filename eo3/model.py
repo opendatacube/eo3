@@ -7,7 +7,7 @@ import attr
 from ruamel.yaml.comments import CommentedMap
 from shapely.geometry.base import BaseGeometry
 
-from eo3.properties import Eo3Dict, Eo3Interface
+from eo3.properties import Eo3DictBase, Eo3InterfaceBase
 
 DEA_URI_PREFIX = "https://collections.dea.ga.gov.au"
 ODC_DATASET_SCHEMA_URL = "https://schemas.opendatacube.org/dataset"
@@ -69,14 +69,13 @@ class AccessoryDoc:
 
 
 @attr.s(auto_attribs=True, slots=True)
-class DatasetDoc(Eo3Interface):
+class Eo3DatasetDocBase(Eo3InterfaceBase):
     """
-    An EO3 dataset document
+    A minimally-validated EO3 dataset document
 
-    Includes :class:`.Eo3Interface` methods for metadata access::
+    Includes :class:`.Eo3InterfaceBase` methods for metadata access::
 
-        >>> p = DatasetDoc()
-        >>> p.platform = 'LANDSAT_8'
+        >>> p = Eo3DatasetDocBase()
         >>> p.processed = '2018-04-03'
         >>> p.properties['odc:processing_datetime']
         datetime.datetime(2018, 4, 3, 0, 0, tzinfo=datetime.timezone.utc)
@@ -108,7 +107,7 @@ class DatasetDoc(Eo3Interface):
     #: Grid specifications for measurements
     grids: Dict[str, GridDoc] = None
     #: Raw properties
-    properties: Eo3Dict = attr.ib(factory=Eo3Dict)
+    properties: Eo3DictBase = attr.ib(factory=Eo3DictBase)
     #: Loadable measurements of the dataset
     measurements: Dict[str, MeasurementDoc] = None
     #: References to accessory files
