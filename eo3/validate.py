@@ -24,11 +24,12 @@ from urllib.parse import urlparse
 
 import attr
 import cattr
+
 import ciso8601
 import numpy as np
 import rasterio
 import toolz
-from attr import Factory, define, field, frozen
+from attr import define, frozen, field, Factory
 from boltons.iterutils import get_path
 from click import echo
 from rasterio import DatasetReader
@@ -38,6 +39,7 @@ from shapely.validation import explain_validity
 
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
+from eo3.metadata.type import validate_metadata_type
 from eo3.model import Eo3DatasetDocBase
 from eo3.ui import is_absolute, uri_resolve
 from eo3.uris import is_url
@@ -49,18 +51,13 @@ from eo3.utils import (
     load_documents,
     read_documents,
 )
+from eo3.validation_msg import Level, ValidationMessage, ValidationMessages, ContextualMessager
 
 DEFAULT_NULLABLE_FIELDS = ("label",)
 DEFAULT_OPTIONAL_FIELDS = (
     # Older product do not have this field at all, and when not specified it is considered stable.
     "dataset_maturity",
 )
-
-
-class Level(enum.Enum):
-    info = 1
-    warning = 2
-    error = 3
 
 
 class DocKind(enum.Enum):
@@ -143,63 +140,6 @@ def guess_kind_from_contents(doc: Dict):
     return None
 
 
-@frozen
-class ValidationMessage:
-    level: Level
-    code: str
-    reason: str
-    hint: str = None
-    #: What was assumed when validating this? Eg: dict(product='ls7_nbar', metadata_type='eo3')
-    context: dict = None
-
-    def __str__(self) -> str:
-        hint = ""
-        if self.hint:
-            hint = f" (Hint: {self.hint})"
-        return f"{self.code}: {self.reason}{hint}"
-
-
-def _info(code: str, reason: str, hint: str = None):
-    return ValidationMessage(Level.info, code, reason, hint=hint)
-
-
-def _warning(code: str, reason: str, hint: str = None):
-    return ValidationMessage(Level.warning, code, reason, hint=hint)
-
-
-def _error(code: str, reason: str, hint: str = None):
-    return ValidationMessage(Level.error, code, reason, hint=hint)
-
-
-ValidationMessages = Generator[ValidationMessage, None, None]
-
-
-class ContextualMessager:
-    def __init__(self, context: dict):
-        self.context = context
-        self.errors = 0
-
-    def info(self, code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.info, code, reason, hint=hint, context=self.context
-        )
-
-    def warning(self, code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.warning, code, reason, hint=hint, context=self.context
-        )
-
-    def error(self, code: str, reason: str, hint: str = None):
-        self.errors += 1
-        return ValidationMessage(
-            Level.error, code, reason, hint=hint, context=self.context
-        )
-
-
-ValidationMessages = Generator[ValidationMessage, None, None]
-
-
-# REVISIT: Do we want this here? feels kinda high level, but seems safe.
 @frozen(init=True)
 class ValidationExpectations:
     """
@@ -527,7 +467,7 @@ def _validate_ds_against_data(
                 band_dtype = ds.dtypes[band - 1]
                 # TODO: NaN handling
                 if expected_dtype != band_dtype:
-                    yield _error(
+                    yield ValidationMessage.error(
                         "different_dtype",
                         f"{name} dtype: "
                         f"product {expected_dtype!r} != dataset {band_dtype!r}",
@@ -574,12 +514,12 @@ def validate_product(doc: Dict) -> ValidationMessages:
         has_doc_errors = True
         displayable_path = ".".join(map(str, error.absolute_path))
         context = f"({displayable_path}) " if displayable_path else ""
-        yield _error("document_schema", f"{context}{error.message} ")
+        yield ValidationMessage.error("document_schema", f"{context}{error.message} ")
 
     # The jsonschema error message for this (common error) is garbage. Make it clearer.
     measurements = doc.get("measurements")
     if (measurements is not None) and not isinstance(measurements, Sequence):
-        yield _error(
+        yield ValidationMessage.error(
             "measurements_list",
             f"Product measurements should be a list/sequence "
             f"(Found a {type(measurements).__name__!r}).",
@@ -590,7 +530,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
         return
 
     if not doc.get("license", "").strip():
-        yield _warning(
+        yield ValidationMessage.warning(
             "no_license",
             f"Product {doc['name']!r} has no license field",
             hint='Eg. "CC-BY-4.0" (SPDX format), "various" or "proprietary"',
@@ -607,7 +547,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
             dtype = measurement.get("dtype")
             nodata = measurement.get("nodata")
             if not numpy_value_fits_dtype(nodata, dtype):
-                yield _error(
+                yield ValidationMessage.error(
                     "unsuitable_nodata",
                     f"Measurement {measurement_name!r} nodata {nodata!r} does not fit a {dtype!r}",
                 )
@@ -623,7 +563,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
                     )
 
                     # If the same name is used by different measurements, its a hard error.
-                    yield _error(
+                    yield ValidationMessage.error(
                         "duplicate_measurement_name",
                         f"Name {new_field_name!r} is used by multiple measurements",
                         hint=f"It's duplicated in an alias. "
@@ -632,25 +572,13 @@ def validate_product(doc: Dict) -> ValidationMessages:
 
             # Are any names duplicated within the one measurement? (not an error, but info)
             for duplicate_name in _find_duplicates(these_names):
-                yield _info(
+                yield ValidationMessage.info(
                     "duplicate_alias_name",
                     f"Measurement {measurement_name!r} has a duplicate alias named {duplicate_name!r}",
                 )
 
             for field_ in these_names:
                 seen_names_and_aliases[field_].append(measurement_name)
-
-
-def validate_metadata_type(doc: Dict) -> ValidationMessages:
-    """
-    Check for common metadata-type mistakes
-    """
-
-    # Validate it against ODC's schema (there will be refused by ODC otherwise)
-    for error in serialise.METADATA_TYPE_SCHEMA.iter_errors(doc):
-        displayable_path = ".".join(map(str, error.absolute_path))
-        context = f"({displayable_path}) " if displayable_path else ""
-        yield _error("document_schema", f"{context}{error.message} ")
 
 
 def _find_duplicates(values: Iterable[str]) -> Generator[str, None, None]:
@@ -735,7 +663,7 @@ def validate_paths(
             if kind and (kind in DOC_TYPE_SUFFIXES):
                 # It looks like an ODC doc but doesn't have the standard suffix.
                 messages.append(
-                    _warning(
+                    ValidationMessage.warning(
                         "missing_suffix",
                         f"Document looks like a {kind.name} but does not have "
                         f'filename extension "{DOC_TYPE_SUFFIXES[kind]}{_readable_doc_extension(url)}"',
@@ -996,7 +924,7 @@ def _match_product(
 
         difference_hint = _differences_as_hint(closest_differences)
         return None, [
-            _error(
+            ValidationMessage.error(
                 "unknown_product",
                 "Dataset does not match the given products",
                 hint=f"Closest match is {closest_product_name}, with differences:"
@@ -1012,7 +940,7 @@ def _match_product(
                 _get_product_mismatch_reasons(dataset_doc, product)
             )
             messages.append(
-                _info(
+                ValidationMessage.info(
                     "strange_product_claim",
                     f"Dataset claims to be product {specified_product_name!r}, but doesn't match its fields",
                     hint=f"{difference_hint}",
@@ -1020,7 +948,7 @@ def _match_product(
             )
         else:
             messages.append(
-                _info(
+                ValidationMessage.info(
                     "unknown_product_claim",
                     f"Dataset claims to be product {specified_product_name!r}, but it wasn't supplied.",
                 )
@@ -1029,7 +957,7 @@ def _match_product(
     if len(matching_products) > 1:
         matching_names = ", ".join(matching_products.keys())
         messages.append(
-            _error(
+            ValidationMessage.error(
                 "product_match_clash",
                 "Multiple products match the given dataset",
                 hint=f"Maybe you need more fields in the 'metadata' section?\n"
@@ -1085,7 +1013,7 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessage
                             # Both are NaNs, ignore.
                             pass
                         else:
-                            yield _warning(
+                            yield ValidationMessage.warning(
                                 "property_formatting",
                                 f"Property {value!r} expected to be {normalised_value!r}",
                             )

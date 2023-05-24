@@ -10,16 +10,13 @@ from rasterio.io import DatasetWriter
 from eo3 import validate
 from eo3.validate import (
     DocKind,
-    Level,
-    ValidationExpectations,
-    ValidationMessage,
-    ValidationMessages,
     filename_doc_kind,
     guess_kind_from_contents,
     validate_dataset,
-    validate_metadata_type,
-    validate_product,
+    validate_product, ValidationExpectations,
 )
+from eo3.validation_msg import Level, ValidationMessage, ValidationMessages
+from eo3.metadata.type import validate_metadata_type
 
 Doc = Union[Dict, Path]
 

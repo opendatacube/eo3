@@ -5,7 +5,7 @@ from pathlib import PosixPath
 from urllib.parse import urlsplit
 
 from eo3.uris import uri_resolve
-from eo3.validate import ValidationMessage
+from eo3.validation_msg import ValidationMessage
 
 
 class AssemblyError(Exception):
