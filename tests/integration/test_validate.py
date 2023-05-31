@@ -13,10 +13,11 @@ from eo3.validate import (
     filename_doc_kind,
     guess_kind_from_contents,
     validate_dataset,
-    validate_product, ValidationExpectations,
+    ValidationExpectations,
 )
+from eo3.product.validate import validate_product
 from eo3.validation_msg import Level, ValidationMessage, ValidationMessages
-from eo3.metadata.type import validate_metadata_type
+from eo3.metadata.validate import validate_metadata_type
 
 Doc = Union[Dict, Path]
 
