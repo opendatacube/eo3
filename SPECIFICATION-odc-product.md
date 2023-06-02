@@ -63,13 +63,13 @@ As of 1.8, the extra_dimensions section is an optional array of extra dimensions
 
 Each extra dimension consists of:
 
-#### name
+##### name
 
 The name of the extra dimension in loaded xarrays and as referenced from the measurement section
 of the product document.
 
 
-#### dtype
+##### dtype
 
 A string representing a numpy numeric datatype. One of:
 
@@ -87,7 +87,7 @@ A string representing a numpy numeric datatype. One of:
  - complex64
  - complex128
 
-#### values
+##### values
 
 An array of coordinate values for the extra dimension. All values must be compatible with the provided
 dtype.
@@ -130,20 +130,20 @@ E.g.:
 ```
 load:
    crs: EPSG:4326
-   // EPSG:4326 coordinate names are "lat" and "lon"
+   // EPSG:4326 coordinate names are "latitude" and "longitude"
    resolution:
       // Measured in units of the CRS (degrees in this case)
-      lon: 0.0001
+      longitude: 0.0001
       // Y/vertical/lat resolution is usually negative
-      lat: -0.0001
+      latitude: -0.0001
    align:
       // bottom left
-      lon: 0
-      lat: 1
+      longitude: 0
+      latitude: 1
 ```
 
 In 1.8 other entries (i.e. not crs, resolution or align) in load are ignored.  In 1.9 they will produce warnings, 
-and 2.0 errors.
+and in 2.0 errors.
 
 #### Measurements
 
@@ -162,7 +162,7 @@ Each measurement definition contains:
 `nodata` is the value representing no data. It must be compatible with the dtype.  If dtype is a
 floating point type, no data may be a string with the value 'Inf', '-Inf' or 'NaN'.
 
-`units` is a string describing the unit of the measurment band.
+`units` is a string describing the unit of the measurement band.
 
 The remaining fields are optional:
 
