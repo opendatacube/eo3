@@ -243,7 +243,8 @@ def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims
                         "bad_extradim_spectra",
                         f"Measurement {measurement_name} referencing unknown extra dimension "
                         f"{measurement['extra_dim']} has spectral definition that does not match dimension coordinates",
-                        hint="Extra dimension measurements should have one spectral definition per dimension coordinate value"
+                        hint="Extra dimension measurements should have "
+                             "one spectral definition per dimension coordinate value"
                     )
                 for spec_def in measurement["spectral_definition"]:
                     yield from validate_spectral_definition(spec_def)
