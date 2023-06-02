@@ -55,7 +55,8 @@ legacy_fields = {
         name="creation_dt",
         validator=lambda x: x == ["properties", "odc:processing_datetime"],
         required=True,
-        hint="Label must be present in the dataset section, and must be set to exactly [properties,odc:processing_datetime]",
+        hint="Label must be present in the dataset section, "
+        "and must be set to exactly [properties,odc:processing_datetime]",
     ),
     "format": LegacyField(
         name="format",

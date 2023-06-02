@@ -237,7 +237,7 @@ def validate_product_measurement(
             yield ValidationMessage.error(
                 "unknown_extra_dimension",
                 f"Measurement {measurement_name} references unknown extra dimension {measurement['extra_dim']}",
-                hint=f"Extra dimensions must be defined in the extra_dimensions section",
+                hint="Extra dimensions must be defined in the extra_dimensions section",
             )
         else:
             # For extra dimension measurements, expect a list of spectral definitions, with length
