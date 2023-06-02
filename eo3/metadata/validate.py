@@ -19,11 +19,11 @@ class LegacyField:
         # self.search_field and not search_field doesn't pass schema so no need to check here
         if candidate is None:
             if self.required:
-                yield ValidationMessage.error(f"missing_system_field",
+                yield ValidationMessage.error("missing_system_field",
                                               f"Required field {self.name} in missing from dataset.",
                                               hint=self.hint)
         elif not self.validator(candidate):
-            yield ValidationMessage.error(f"bad_system_field",
+            yield ValidationMessage.error("bad_system_field",
                                           f"{self.name} in dataset is set to an EO-3 incompatible value.",
                                           hint=self.hint)
 
@@ -33,17 +33,20 @@ legacy_fields = {
         name="id",
         validator=lambda x: x == ["id"],
         required=True,
-        hint="id must be present in the dataset section, and must be set to exactly [id]"),
+        hint="id must be present in the dataset section, and must be set to exactly [id]"
+    ),
     "measurements": LegacyField(
         name="measurements",
         validator=lambda x: x == ["measurements"],
         geospatial=True,
-        hint="measurements must be present in the dataset section, and must be set to exactly [measurements]"),
+        hint="measurements must be present in the dataset section, and must be set to exactly [measurements]"
+    ),
     "label": LegacyField(
         name="label",
         validator=lambda x: x == ["label"],
         required=True,
-        hint="label must be present in the dataset section, and must be set to exactly [label]"),
+        hint="label must be present in the dataset section, and must be set to exactly [label]"
+    ),
     "creation_dt": LegacyField(
         name="creation_dt",
         validator=lambda x: x == ["properties", "odc:processing_datetime"],
@@ -54,11 +57,13 @@ legacy_fields = {
         name="format",
         validator=lambda x: x == ["properties", "odc:file_format"],
         geospatial=True,
-        hint="measurements must be present in the dataset section, and must be set to exactly [measurements]"),
+        hint="measurements must be present in the dataset section, and must be set to exactly [measurements]"
+    ),
     "sources": LegacyField(
         name="sources",
         validator=lambda x: x[0] == "lineage",
-        hint="sources should be stored under 'lineage'"),
+        hint="sources should be stored under 'lineage'"
+    ),
     "grid_spatial": LegacyField(
         name="grid_spatial",
         validator=lambda x: True,

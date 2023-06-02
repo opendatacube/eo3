@@ -132,5 +132,13 @@ def test_metadata_eo3_search(metadata_type: Dict):
     assert "spam" in err_msgs
 
 
-
+def test_metadata_eo3_search_legacy_special(metadata_type: Dict):
+    metadata_type["dataset"]["search_fields"]["crs_raw"] = {
+        "description": "CRS of record",
+        "offset": ["crs"]
+    }
+    msgs = MessageCatcher(
+        validate_metadata_type(metadata_type)
+    )
+    assert not msgs.errors()
 

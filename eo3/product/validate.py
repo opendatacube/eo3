@@ -57,7 +57,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
     if doc.get("managed"):
         yield ValidationMessage.warning(
             "ingested_product",
-            f"Data ingestion and the managed flag are deprecated"
+            "Data ingestion and the managed flag are deprecated"
         )
 
     # Check measurement name clashes etc.
@@ -65,7 +65,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
         # Products have historically not had to have measurements. (eg. provenance-only products)
         yield ValidationMessage.warning(
             "no_measurements",
-            f"Products with no measurements are deprecated."
+            "Products with no measurements are deprecated."
         )
     else:
         seen_names_and_aliases = collections.defaultdict(list)
@@ -100,21 +100,21 @@ def validate_load_hints(doc) -> ValidationMessages:
     elif "storage" in doc:
         yield ValidationMessage.warning(
             "storage_section",
-            f"The storage section is deprecated. Please replace with a 'load' section or remove.",
+            "The storage section is deprecated. Please replace with a 'load' section or remove.",
         )
         storage = doc["storage"]
         if "crs" in storage and "resolution" in storage:
             if "tile_size" in storage:
                 yield ValidationMessage.warning(
                     "storage_tilesize",
-                    f"Tile size in the storage section is no longer supported and should be removed.",
+                    "Tile size in the storage section is no longer supported and should be removed.",
                 )
     elif "load" in doc:
         crs = None
         if "crs" not in doc['load']:
             yield ValidationMessage.error(
                 "load_nocrs",
-                f"No CRS provided in load hints",
+                "No CRS provided in load hints",
                 hint="Add a CRS to the load section, or remove the load section"
             )
         else:
@@ -123,7 +123,7 @@ def validate_load_hints(doc) -> ValidationMessages:
             except ValueError:
                 yield ValidationMessage.error(
                     "invalid_nocrs",
-                    f"CRS in load hints is not a valid CRS",
+                    "CRS in load hints is not a valid CRS",
                     hint="Use an EPSG code or WKT representation"
                 )
         if "align" in doc['load']:
@@ -132,19 +132,19 @@ def validate_load_hints(doc) -> ValidationMessages:
                     yield ValidationMessage.error(
                         "invalid_align_dim",
                         f"align does not have {dimname} dimension in load hints",
-                        hint=f"Use the CRS coordinate names in align"
+                        hint="Use the CRS coordinate names in align"
                     )
                 elif not isinstance(doc['load']['align'][dimname], (int, float)):
                     yield ValidationMessage.error(
                         "invalid_align_type",
                         f"align for {dimname} dimension in load hints is not a number",
-                        hint=f"Use a number between zero and one"
+                        hint="Use a number between zero and one"
                     )
                 elif doc['load']['align'][dimname] < 0 or doc['load']['align'][dimname] > 1:
                     yield ValidationMessage.warning(
                         "unexpected_align_val",
                         f"align for {dimname} dimension in outside range [0,1]",
-                        hint=f"Use a number between zero and one"
+                        hint="Use a number between zero and one"
                     )
         if "resolution" in doc['load']:
             for dimname in crs.dimensions:
@@ -152,13 +152,13 @@ def validate_load_hints(doc) -> ValidationMessages:
                     yield ValidationMessage.error(
                         "invalid_resolution_dim",
                         f"resolution does not have {dimname} dimension in load hints",
-                        hint=f"Use the CRS coordinate names in resolution"
+                        hint="Use the CRS coordinate names in resolution"
                     )
                 elif not isinstance(doc['load']['align'][dimname], (int, float)):
                     yield ValidationMessage.error(
                         "invalid_resolution_type",
                         f"resolution for {dimname} dimension in load hints is not a number",
-                        hint=f"Use a number in the CRS units"
+                        hint="Use a number in the CRS units"
                     )
         for key in doc['load'].keys():
             if key not in ("crs", "align", "resolution"):
@@ -243,7 +243,7 @@ def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims
                         "bad_extradim_spectra",
                         f"Measurement {measurement_name} referencing unknown extra dimension "
                         f"{measurement['extra_dim']} has spectral definition that does not match dimension coordinates",
-                        hint=f"Extra dimension measurements should have one spectral definition per dimension coordinate value"
+                        hint="Extra dimension measurements should have one spectral definition per dimension coordinate value"
                     )
                 for spec_def in measurement["spectral_definition"]:
                     yield from validate_spectral_definition(spec_def)
