@@ -3,7 +3,7 @@
 Product documents were originally known as "Dataset Type" documents.  The preferred terminology is now
 "products".
 
-In the ODC, all datasets must belong to a product. The products can be represented by product 
+In the ODC, all datasets must belong to a product. The products can be represented by product
 documents.
 
 ### Format
@@ -25,7 +25,7 @@ only.  Name is required and must be unique within a given ODC index.
 `description` is a string. It is required but may have any value.
 
 #### Metadata Type
-`metadata_type` is required. It must a string that is the name of a metadata type document stored in the target 
+`metadata_type` is required. It must a string that is the name of a metadata type document stored in the target
 ODC index.
 
 The JSON schema also allows for a full metadata_type document to be embedded in this position, but this is deprecated
@@ -48,7 +48,7 @@ The `metadata` section contains metadata that all datasets belonging to product 
 with values in datasets' properties section.
 
 For EO3 compatible products, the metadata section should un-nested key-value pairs with EO3-compatible
-key values: alphanumeric plus underscores, with a colon-separated namespace hierarchy. 
+key values: alphanumeric plus underscores, with a colon-separated namespace hierarchy.
 E.g. "eo:instrument", "odc:file_format", etc.
 
 #### Extra Dimensions
@@ -92,13 +92,13 @@ A string representing a numpy numeric datatype. One of:
 An array of coordinate values for the extra dimension. All values must be compatible with the provided
 dtype.
 
-                                
+
 #### Storage and Load
 
-Storage and load were originally historic methods for providing load hints. 
+Storage and load were originally historic methods for providing load hints.
 
-In 1.8, load and storage are equivalent, with load taking precedence over storage if both are provided - unless 
-the storage section contains "tile_size", in which case it is ignored.  
+In 1.8, load and storage are equivalent, with load taking precedence over storage if both are provided - unless
+the storage section contains "tile_size", in which case it is ignored.
 
 Storage will be deprecated in 1.9 and removed in 2.0.
 
@@ -115,14 +115,14 @@ It also used to determine the coordinate labels for resolution and align, as dis
 
 ##### resolution and align
 
-Resolution and align are optional and should represent a numeric vector in the coordinates of the 
+Resolution and align are optional and should represent a numeric vector in the coordinates of the
 CRS.  They are returned as prod.default resolution and prod.default.align and used to construct
 the output geobox.
 
 Resolution specifies the native/default resolution (in CRS coordinate units) and align specifies
 the default pixel alignment.
 
-Pixel alignment are measured between 0 and 1, with (0,0) being top-left alignment and (1,1) 
+Pixel alignment are measured between 0 and 1, with (0,0) being top-left alignment and (1,1)
 being bottom-right alignment
 
 E.g.:
@@ -142,7 +142,7 @@ load:
       latitude: 1
 ```
 
-In 1.8 other entries (i.e. not crs, resolution or align) in load are ignored.  In 1.9 they will produce warnings, 
+In 1.8 other entries (i.e. not crs, resolution or align) in load are ignored.  In 1.9 they will produce warnings,
 and in 2.0 errors.
 
 #### Measurements
@@ -179,7 +179,7 @@ in the source data should be in the values list in the `extra_dimensions` sectio
 
 A representation of the spectral response of the measurement.
 
-For normal measurements, contains `wavelength` and `response`, both of which are arrays of equal length of 
+For normal measurements, contains `wavelength` and `response`, both of which are arrays of equal length of
 numerical values.
 
 For extra dimension measurements, a list of spectral definitions is provided, one per coordinate value
@@ -260,6 +260,6 @@ Categorical data example:
 
 ### Managed
 
-`managed` is an optional boolean field that defaults to false.  It should be true only if the product was created 
+`managed` is an optional boolean field that defaults to false.  It should be true only if the product was created
 with the datacube ingestion API.  Note that the ingestion API is deprecated in v1.9 and will be removed in 2.0,
 after which the managed field will no longer be supported.

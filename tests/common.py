@@ -1,7 +1,7 @@
 import operator
 from pathlib import Path
 from textwrap import indent
-from typing import Dict, Iterable, Union, Mapping, Sequence
+from typing import Dict, Iterable, Mapping, Sequence, Union
 
 import pytest
 import rapidjson
@@ -13,7 +13,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from eo3 import Eo3DatasetDocBase, serialise
-from eo3.validation_msg import ValidationMessages, Level, ValidationMessage
+from eo3.validation_msg import Level, ValidationMessage, ValidationMessages
 
 
 def check_prepare_outputs(

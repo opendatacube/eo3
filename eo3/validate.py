@@ -22,11 +22,10 @@ from urllib.parse import urlparse
 
 import attr
 import cattr
-
 import ciso8601
 import rasterio
 import toolz
-from attr import define, frozen, field, Factory
+from attr import Factory, define, field, frozen
 from boltons.iterutils import get_path
 from click import echo
 from rasterio import DatasetReader
@@ -44,12 +43,18 @@ from eo3.uris import is_url
 from eo3.utils import (
     EO3_SCHEMA,
     InvalidDocException,
+    _is_nan,
     contains,
     default_utc,
     load_documents,
-    read_documents, _is_nan,
+    read_documents,
 )
-from eo3.validation_msg import Level, ValidationMessage, ValidationMessages, ContextualMessager
+from eo3.validation_msg import (
+    ContextualMessager,
+    Level,
+    ValidationMessage,
+    ValidationMessages,
+)
 
 DEFAULT_NULLABLE_FIELDS = ("label",)
 DEFAULT_OPTIONAL_FIELDS = (
@@ -481,7 +486,7 @@ def _validate_ds_against_data(
                 # Otherwise check that nodata matches.
                 expected_nodata = expected_measurement.nodata
                 if expected_nodata != ds_nodata and not (
-                        _is_nan(expected_nodata) and _is_nan(ds_nodata)
+                    _is_nan(expected_nodata) and _is_nan(ds_nodata)
                 ):
                     yield msg.error(
                         "different_nodata",

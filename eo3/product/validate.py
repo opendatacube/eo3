@@ -1,13 +1,13 @@
 import collections
 import re
-from typing import Dict, Sequence, Iterable, Generator
+from typing import Dict, Generator, Iterable, Sequence
 
 import numpy as np
 from odc.geo import CRS
 
 from eo3 import serialise
 from eo3.utils import _is_nan
-from eo3.validation_msg import ValidationMessages, ValidationMessage
+from eo3.validation_msg import ValidationMessage, ValidationMessages
 
 
 def validate_product(doc: Dict) -> ValidationMessages:
@@ -46,46 +46,47 @@ def validate_product(doc: Dict) -> ValidationMessages:
     if not isinstance(doc.get("metadata_type"), str):
         yield ValidationMessage.warning(
             "embedded_metadata_type",
-            "Embedded metadata types are deprecated, please reference metatdata type by name"
+            "Embedded metadata types are deprecated, please reference metatdata type by name",
         )
 
     yield from validate_product_metadata(doc.get("metadata"))
     extra_dims = {}
-    yield from validate_extra_dimensions(doc.get("extra_dimensions", []), doc["name"], extra_dims)
+    yield from validate_extra_dimensions(
+        doc.get("extra_dimensions", []), doc["name"], extra_dims
+    )
     yield from validate_load_hints(doc)
 
     if doc.get("managed"):
         yield ValidationMessage.warning(
-            "ingested_product",
-            "Data ingestion and the managed flag are deprecated"
+            "ingested_product", "Data ingestion and the managed flag are deprecated"
         )
 
     # Check measurement name clashes etc.
     if measurements is None:
         # Products have historically not had to have measurements. (eg. provenance-only products)
         yield ValidationMessage.warning(
-            "no_measurements",
-            "Products with no measurements are deprecated."
+            "no_measurements", "Products with no measurements are deprecated."
         )
     else:
         seen_names_and_aliases = collections.defaultdict(list)
         for measurement in measurements:
-            yield from validate_product_measurement(measurement, seen_names_and_aliases, extra_dims)
+            yield from validate_product_measurement(
+                measurement, seen_names_and_aliases, extra_dims
+            )
 
 
 def validate_product_metadata(template: Dict) -> ValidationMessages:
     for key, value in template.items():
         if not isinstance(key, str):
             yield ValidationMessage.error(
-                "nested_metadata",
-                "Nesting of metadata fields is not supported in EO3"
+                "nested_metadata", "Nesting of metadata fields is not supported in EO3"
             )
             continue
-        if not re.match("^[\w:]+", key):
+        if not re.match(r"^[\w:]+", key):
             yield ValidationMessage.error(
                 "invalid_metadata_key",
                 f"Invalid metadata field name {key}",
-                hint="Metadata field names can only contain alphanumeric characters, underscores and colons"
+                hint="Metadata field names can only contain alphanumeric characters, underscores and colons",
             )
 
 
@@ -95,7 +96,7 @@ def validate_load_hints(doc) -> ValidationMessages:
             "storage_and_load",
             f"Product {doc['name']} contains both storage and load sections. "
             "Storage section is ignored if load section is provided.",
-            hint="Remove storage section"
+            hint="Remove storage section",
         )
     elif "storage" in doc:
         yield ValidationMessage.warning(
@@ -111,56 +112,59 @@ def validate_load_hints(doc) -> ValidationMessages:
                 )
     elif "load" in doc:
         crs = None
-        if "crs" not in doc['load']:
+        if "crs" not in doc["load"]:
             yield ValidationMessage.error(
                 "load_nocrs",
                 "No CRS provided in load hints",
-                hint="Add a CRS to the load section, or remove the load section"
+                hint="Add a CRS to the load section, or remove the load section",
             )
         else:
             try:
-                crs = CRS(doc['load']['crs'])
+                crs = CRS(doc["load"]["crs"])
             except ValueError:
                 yield ValidationMessage.error(
                     "invalid_nocrs",
                     "CRS in load hints is not a valid CRS",
-                    hint="Use an EPSG code or WKT representation"
+                    hint="Use an EPSG code or WKT representation",
                 )
-        if "align" in doc['load']:
+        if "align" in doc["load"]:
             for dimname in crs.dimensions:
-                if dimname not in doc['load']["align"]:
+                if dimname not in doc["load"]["align"]:
                     yield ValidationMessage.error(
                         "invalid_align_dim",
                         f"align does not have {dimname} dimension in load hints",
-                        hint="Use the CRS coordinate names in align"
+                        hint="Use the CRS coordinate names in align",
                     )
-                elif not isinstance(doc['load']['align'][dimname], (int, float)):
+                elif not isinstance(doc["load"]["align"][dimname], (int, float)):
                     yield ValidationMessage.error(
                         "invalid_align_type",
                         f"align for {dimname} dimension in load hints is not a number",
-                        hint="Use a number between zero and one"
+                        hint="Use a number between zero and one",
                     )
-                elif doc['load']['align'][dimname] < 0 or doc['load']['align'][dimname] > 1:
+                elif (
+                    doc["load"]["align"][dimname] < 0
+                    or doc["load"]["align"][dimname] > 1
+                ):
                     yield ValidationMessage.warning(
                         "unexpected_align_val",
                         f"align for {dimname} dimension in outside range [0,1]",
-                        hint="Use a number between zero and one"
+                        hint="Use a number between zero and one",
                     )
-        if "resolution" in doc['load']:
+        if "resolution" in doc["load"]:
             for dimname in crs.dimensions:
-                if dimname not in doc['load']["resolution"]:
+                if dimname not in doc["load"]["resolution"]:
                     yield ValidationMessage.error(
                         "invalid_resolution_dim",
                         f"resolution does not have {dimname} dimension in load hints",
-                        hint="Use the CRS coordinate names in resolution"
+                        hint="Use the CRS coordinate names in resolution",
                     )
-                elif not isinstance(doc['load']['align'][dimname], (int, float)):
+                elif not isinstance(doc["load"]["align"][dimname], (int, float)):
                     yield ValidationMessage.error(
                         "invalid_resolution_type",
                         f"resolution for {dimname} dimension in load hints is not a number",
-                        hint="Use a number in the CRS units"
+                        hint="Use a number in the CRS units",
                     )
-        for key in doc['load'].keys():
+        for key in doc["load"].keys():
             if key not in ("crs", "align", "resolution"):
                 yield ValidationMessage.warning(
                     "unsupported_load_hint",
@@ -168,25 +172,29 @@ def validate_load_hints(doc) -> ValidationMessages:
                 )
 
 
-def validate_extra_dimensions(extra_dimensions: Sequence[Dict], prod_name: str, extra_dims: Dict[str, Dict]) -> ValidationMessages:
+def validate_extra_dimensions(
+    extra_dimensions: Sequence[Dict], prod_name: str, extra_dims: Dict[str, Dict]
+) -> ValidationMessages:
     for dim in extra_dimensions:
         if dim["name"] in extra_dims:
             yield ValidationMessage.error(
                 "duplicate_extra_dimension",
-                f"Extra dimension {dim['name']} is defined twice in product {prod_name}"
+                f"Extra dimension {dim['name']} is defined twice in product {prod_name}",
             )
             continue
-        dtype = dim['dtype']
-        for val in dim['values']:
+        dtype = dim["dtype"]
+        for val in dim["values"]:
             if not numpy_value_fits_dtype(val, dtype):
                 yield ValidationMessage.error(
                     "unsuitable_coords",
                     f"Extra dimension {dim['name']} value {val} does not fit a {dtype}",
                 )
-        extra_dims[dim['name']] = dim
+        extra_dims[dim["name"]] = dim
 
 
-def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims) -> ValidationMessages:
+def validate_product_measurement(
+    measurement, seen_names_and_aliases, extra_dims
+) -> ValidationMessages:
     measurement_name = measurement.get("name")
     dtype = measurement.get("dtype")
     nodata = measurement.get("nodata")
@@ -202,8 +210,7 @@ def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims
         measurements_with_this_name = seen_names_and_aliases[new_field_name]
         if measurements_with_this_name:
             seen_in = " and ".join(
-                repr(s)
-                for s in ([measurement_name] + measurements_with_this_name)
+                repr(s) for s in ([measurement_name] + measurements_with_this_name)
             )
 
             # If the same name is used by different measurements, its a hard error.
@@ -211,7 +218,7 @@ def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims
                 "duplicate_measurement_name",
                 f"Name {new_field_name!r} is used by multiple measurements",
                 hint=f"It's duplicated in an alias. "
-                     f"Seen in measurement(s) {seen_in}",
+                f"Seen in measurement(s) {seen_in}",
             )
 
     # Are any names duplicated within the one measurement? (not an error, but info)
@@ -230,21 +237,21 @@ def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims
             yield ValidationMessage.error(
                 "unknown_extra_dimension",
                 f"Measurement {measurement_name} references unknown extra dimension {measurement['extra_dim']}",
-                hint=f"Extra dimensions must be defined in the extra_dimensions section"
+                hint=f"Extra dimensions must be defined in the extra_dimensions section",
             )
         else:
             # For extra dimension measurements, expect a list of spectral definitions, with length
             # equal to length of dimension coordinate list
             if "spectral_definition" in measurement:
                 if len(measurement["spectral_definition"]) != len(
-                        extra_dims[measurement["extra_dims"]].get("values", [])
+                    extra_dims[measurement["extra_dims"]].get("values", [])
                 ):
                     yield ValidationMessage.error(
                         "bad_extradim_spectra",
                         f"Measurement {measurement_name} referencing unknown extra dimension "
                         f"{measurement['extra_dim']} has spectral definition that does not match dimension coordinates",
                         hint="Extra dimension measurements should have "
-                             "one spectral definition per dimension coordinate value"
+                        "one spectral definition per dimension coordinate value",
                     )
                 for spec_def in measurement["spectral_definition"]:
                     yield from validate_spectral_definition(spec_def)
@@ -256,7 +263,7 @@ def validate_product_measurement(measurement, seen_names_and_aliases, extra_dims
         yield from validate_flags_definition(measurement["flags_definition"])
 
 
-def validate_spectral_definition(spec_def:Dict) -> ValidationMessages:
+def validate_spectral_definition(spec_def: Dict) -> ValidationMessages:
     # Schema does not declare wavelength and response required in spectral definition
     if "wavelength" not in spec_def or "response" not in spec_def:
         yield ValidationMessage.error(
@@ -329,7 +336,7 @@ def validate_flags_definition(flags: Dict) -> ValidationMessages:
             if not isinstance(v, (str, bool)):
                 yield ValidationMessage.error(
                     "bad_flag_value",
-                    f"Flag definition values must be a string or a boolean (found {k})"
+                    f"Flag definition values must be a string or a boolean (found {k})",
                 )
 
 

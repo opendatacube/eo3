@@ -8,15 +8,16 @@ import rasterio
 from rasterio.io import DatasetWriter
 
 from eo3 import validate
+from eo3.product.validate import validate_product
 from eo3.validate import (
     DocKind,
+    ValidationExpectations,
     filename_doc_kind,
     guess_kind_from_contents,
     validate_dataset,
-    ValidationExpectations,
 )
-from eo3.product.validate import validate_product
 from eo3.validation_msg import ValidationMessage
+
 from tests.common import MessageCatcher
 
 Doc = Union[Dict, Path]
@@ -159,7 +160,9 @@ def l1_ls8_product():
 
 
 def test_val_msg_str():
-    msg = ValidationMessage.info("test_msg", "Spam, spam, spam, sausages and spam", hint="I don't like spam!")
+    msg = ValidationMessage.info(
+        "test_msg", "Spam, spam, spam, sausages and spam", hint="I don't like spam!"
+    )
     msg_str = str(msg)
     assert "test_msg" in msg_str
     assert "sausages and spam" in msg_str
@@ -672,53 +675,32 @@ def test_is_ingestion():
 
 def test_is_metadata_type():
     """Product documents should be correctly identified as products"""
-    mdt = dict(
-        name="minimal_mdt",
-        dataset=dict(
-            search_fields=dict()
-        )
-    )
+    mdt = dict(name="minimal_mdt", dataset=dict(search_fields=dict()))
     assert guess_kind_from_contents(mdt) == DocKind.metadata_type
 
 
 def test_is_legacy_dataset():
     """Product documents should be correctly identified as products"""
-    ds = dict(
-        id="spam",
-        lineage=["sources"],
-        platform="boots"
-    )
+    ds = dict(id="spam", lineage=["sources"], platform="boots")
     assert guess_kind_from_contents(ds) == DocKind.legacy_dataset
 
 
 def test_is_stac():
     """Product documents should be correctly identified as products"""
-    ds = dict(
-        id="spam",
-        properties=dict(
-            datetime="today, right now"
-        )
-    )
+    ds = dict(id="spam", properties=dict(datetime="today, right now"))
     assert guess_kind_from_contents(ds) == DocKind.stac_item
 
 
 def test_not_a_dockind():
     """Product documents should be correctly identified as products"""
-    product = dict(
-        spam="spam",
-        bacon="eggs",
-        interruptions="vikings"
-    )
+    product = dict(spam="spam", bacon="eggs", interruptions="vikings")
     assert guess_kind_from_contents(product) is None
 
 
 def test_has_offset():
-    doc = dict(
-        spam="spam",
-        bacon="eggs",
-        atmosphere=dict(interruptions="vikings")
-    )
+    doc = dict(spam="spam", bacon="eggs", atmosphere=dict(interruptions="vikings"))
     from eo3.validate import _has_offset
+
     assert _has_offset(doc, ["spam"])
     assert _has_offset(doc, ["atmosphere", "interruptions"])
     assert not _has_offset(doc, ["eggs"])

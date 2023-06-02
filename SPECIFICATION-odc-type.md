@@ -14,7 +14,7 @@ https://github.com/opendatacube/eo3/blob/develop/eo3/schema/metadata-type-schema
 ### Top Level
 
 The top level of a Metadata Type Document consists of a name and description and a dataset
-section.  
+section.
 ```
 name: eo3_minimal
 description: Minimal EO3 compatible
@@ -22,7 +22,7 @@ dataset:
     ...
 ```
 
-#### Name 
+#### Name
 `name` cannot contain whitespace or punctuation - alphanumeric characters (or underscores)
 only.  Name is required and must be unique within a given index.
 
@@ -32,8 +32,8 @@ only.  Name is required and must be unique within a given index.
 ### Dataset (section)
 
 As of datacube-1.8.x, most of the contents of `dataset` are no longer used by ODC, the only portion
-still used is the `search_fields` section described below.  The remainder of this document is 
-required by the schema but mostly ignored by the ODC and/or assumed to have the following 
+still used is the `search_fields` section described below.  The remainder of this document is
+required by the schema but mostly ignored by the ODC and/or assumed to have the following
 canonical values:
 
 ```
@@ -58,7 +58,7 @@ to the above values, then later deprecated, then dropped from the schema in 2.0.
 
 #### Fields that are optional in 1.8.x
 
-`format`, `grid_spatial`, and `measurements` are optional. 
+`format`, `grid_spatial`, and `measurements` are optional.
 
 For an EO3-compliant geospatial metadata type these fields must all be present and have the values shown above.
 
@@ -67,14 +67,14 @@ to the above values, then later deprecated, then dropped from the schema in 2.0.
 
 ##### Proposed future extension - non-geospatial EO3 metadata
 
-The legacy postgres ODC index driver in datacube 1.8 supports both EO3 and non-EO3 metadata types and also 
-supports both geospatial and non-geospatial metadata types, but "EO3-compatible" is largely assumed to 
+The legacy postgres ODC index driver in datacube 1.8 supports both EO3 and non-EO3 metadata types and also
+supports both geospatial and non-geospatial metadata types, but "EO3-compatible" is largely assumed to
 imply a geo-spatial metadata type.
 
 With support for non-EO3-compatible metadata types being dropped in datacube-2.0, support for non-geospatial metadata
 types will also be vanish.
 
-New structures may be introduced at a later date to support EO3-compliant non-geospatial metadata types 
+New structures may be introduced at a later date to support EO3-compliant non-geospatial metadata types
 (e.g. EO3 telemetry).
 
 Note that EO3-compliant non-geospatial metadata types may not be supported by all index drivers.
@@ -95,13 +95,13 @@ An optional free-text description of the search field.  For informational purpos
 ##### Indexed
 
 `indexed` is a an optional boolean field that defaults to True.  If False, the field is not indexed by the index
-driver (i.e. a search field that cannot be searched.)   
+driver (i.e. a search field that cannot be searched.)
 
 Indexed may be deprecated/required to be True in future releases.
 
 ##### Type
 
-`type` is an optional string field that describes the data type of the search field.  If not specified, `type` defaults 
+`type` is an optional string field that describes the data type of the search field.  If not specified, `type` defaults
 to `"string"`.   The allowed values for type are:
 
 **Scalar types:**
@@ -120,7 +120,7 @@ to `"string"`.   The allowed values for type are:
 
 `float-range` is a synonym for `numeric-range` and may be deprecated and removed in future releases.
 
-Some index drivers may treat some combination of integer, double and numeric types as interchangable 
+Some index drivers may treat some combination of integer, double and numeric types as interchangable
 for indexing purposes.
 
 ##### Offset (or min_offset and max_offset)
@@ -202,4 +202,3 @@ crs_raw:
   indexed: False
   description: The raw CRS string as it appears in metadata
 ```
-
