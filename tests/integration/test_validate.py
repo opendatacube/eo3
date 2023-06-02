@@ -230,6 +230,14 @@ class MessageCatcher:
         return txt
 
 
+def test_val_msg_str():
+    msg = ValidationMessage.info("test_msg", "Spam, spam, spam, sausages and spam", hint="I don't like spam!")
+    msg_str = str(msg)
+    assert "test_msg" in msg_str
+    assert "sausages and spam" in msg_str
+    assert "I don't like spam!" in msg_str
+
+
 def test_valid_document_works(example_metadata: Dict):
     """All of our example metadata files should validate"""
     msgs = MessageCatcher(validate_dataset(example_metadata))
@@ -724,6 +732,28 @@ def test_is_product():
         name="minimal_product", metadata_type="eo3", measurements=[dict(name="blue")]
     )
     assert guess_kind_from_contents(product) == DocKind.product
+
+
+def test_not_a_dockind():
+    """Product documents should be correctly identified as products"""
+    product = dict(
+        spam="spam",
+        bacon="eggs",
+        interruptions="vikings"
+    )
+    assert guess_kind_from_contents(product) is None
+
+
+def test_has_offset():
+    doc = dict(
+        spam="spam",
+        bacon="eggs",
+        atmosphere=dict(interruptions="vikings")
+    )
+    from eo3.validate import _has_offset
+    assert _has_offset(doc, ["spam"])
+    assert _has_offset(doc, ["atmosphere", "interruptions"])
+    assert not _has_offset(doc, ["eggs"])
 
 
 def test_dataset_is_not_a_product(example_metadata: Dict):
