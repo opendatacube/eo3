@@ -123,7 +123,7 @@ def validate_metadata_type(doc: Dict) -> ValidationMessages:
     try:
         name = doc["name"]
     except KeyError:
-        yield ValidationMessage.error("Metadata type must have a name.")
+        yield ValidationMessage.error("no_type_name", "Metadata type must have a name.")
         return
     # Validate it against ODC's schema (will be refused by ODC otherwise)
     for error in serialise.METADATA_TYPE_SCHEMA.iter_errors(doc):

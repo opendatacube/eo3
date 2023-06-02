@@ -1,6 +1,6 @@
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, Mapping, Sequence, Union
+from typing import Dict, Union
 
 import numpy as np
 import pytest
@@ -16,8 +16,8 @@ from eo3.validate import (
     ValidationExpectations,
 )
 from eo3.product.validate import validate_product
-from eo3.validation_msg import Level, ValidationMessage, ValidationMessages
-from eo3.metadata.validate import validate_metadata_type
+from eo3.validation_msg import ValidationMessage
+from tests.common import MessageCatcher
 
 Doc = Union[Dict, Path]
 
@@ -48,37 +48,6 @@ def product():
             ],
         ),
     )
-
-
-@pytest.fixture()
-def metadata_type():
-    return {
-        "name": "eo3",
-        "description": "Minimal EO3-like",
-        "dataset": {
-            "id": ["id"],
-            "sources": ["lineage", "source_datasets"],
-            "grid_spatial": ["grid_spatial", "projection"],
-            "measurements": ["measurements"],
-            "creation_dt": ["properties", "odc:processing_datetime"],
-            "label": ["label"],
-            "format": ["properties", "odc:file_format"],
-            "search_fields": {
-                "time": {
-                    "description": "Acquisition time range",
-                    "type": "datetime-range",
-                    "min_offset": [
-                        ["properties", "dtr:start_datetime"],
-                        ["properties", "datetime"],
-                    ],
-                    "max_offset": [
-                        ["properties", "dtr:end_datetime"],
-                        ["properties", "datetime"],
-                    ],
-                }
-            },
-        },
-    }
 
 
 @pytest.fixture()
@@ -187,47 +156,6 @@ def l1_ls8_product():
             },
         ],
     }
-
-
-class MessageCatcher:
-    def __init__(self, msgs: ValidationMessages):
-        self._msgs: Mapping[Level, Sequence[ValidationMessage]] = {
-            Level.info: [],
-            Level.warning: [],
-            Level.error: [],
-        }
-        for msg in msgs:
-            self._msgs[msg.level].append(msg)
-
-    def errors(self):
-        return self._msgs[Level.error]
-
-    def warnings(self):
-        return self._msgs[Level.warning]
-
-    def infos(self):
-        return self._msgs[Level.info]
-
-    def all_text(self):
-        return self.error_text() + self.warning_text() + self.info_text()
-
-    def error_text(self):
-        return self.text_for_level(Level.error)
-
-    def warning_text(self):
-        return self.text_for_level(Level.warning)
-
-    def info_text(self):
-        return self.text_for_level(Level.info)
-
-    def text_for_level(self, lvl: Level):
-        txt = ""
-        for msg in self._msgs[lvl]:
-            if msg.hint:
-                txt += f"{msg.code}:{msg.reason} ({msg.hint})\n"
-            else:
-                txt += f"{msg.code}:{msg.reason}\n"
-        return txt
 
 
 def test_val_msg_str():
@@ -718,12 +646,6 @@ def test_complains_when_no_product(
         )
     )
     assert "no_product" in msgs.error_text()
-
-
-def test_validate_metadata_type(metadata_type: Dict):
-    msgs = MessageCatcher(validate_metadata_type(metadata_type))
-    assert not msgs.errors()
-    assert not msgs.warnings()
 
 
 def test_is_product():

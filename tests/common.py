@@ -1,7 +1,7 @@
 import operator
 from pathlib import Path
 from textwrap import indent
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable, Union, Mapping, Sequence
 
 import pytest
 import rapidjson
@@ -13,6 +13,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from eo3 import Eo3DatasetDocBase, serialise
+from eo3.validation_msg import ValidationMessages, Level, ValidationMessage
 
 
 def check_prepare_outputs(
@@ -221,3 +222,44 @@ def dump_roundtrip(generated_doc):
     return rapidjson.loads(
         rapidjson.dumps(generated_doc, datetime_mode=True, uuid_mode=True)
     )
+
+
+class MessageCatcher:
+    def __init__(self, msgs: ValidationMessages):
+        self._msgs: Mapping[Level, Sequence[ValidationMessage]] = {
+            Level.info: [],
+            Level.warning: [],
+            Level.error: [],
+        }
+        for msg in msgs:
+            self._msgs[msg.level].append(msg)
+
+    def errors(self):
+        return self._msgs[Level.error]
+
+    def warnings(self):
+        return self._msgs[Level.warning]
+
+    def infos(self):
+        return self._msgs[Level.info]
+
+    def all_text(self):
+        return self.error_text() + self.warning_text() + self.info_text()
+
+    def error_text(self):
+        return self.text_for_level(Level.error)
+
+    def warning_text(self):
+        return self.text_for_level(Level.warning)
+
+    def info_text(self):
+        return self.text_for_level(Level.info)
+
+    def text_for_level(self, lvl: Level):
+        txt = ""
+        for msg in self._msgs[lvl]:
+            if msg.hint:
+                txt += f"{msg.code}:{msg.reason} ({msg.hint})\n"
+            else:
+                txt += f"{msg.code}:{msg.reason}\n"
+        return txt

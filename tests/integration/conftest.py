@@ -681,3 +681,34 @@ def input_uint8_tif() -> Path:
 @pytest.fixture
 def input_uint8_tif_2() -> Path:
     return Path(WOFS_PATH / "ga_ls_wofs_3_090081_1993_01_05_interim_water_clipped.tif")
+
+
+@pytest.fixture()
+def metadata_type():
+    return {
+        "name": "eo3",
+        "description": "Minimal EO3-like",
+        "dataset": {
+            "id": ["id"],
+            "sources": ["lineage", "source_datasets"],
+            "grid_spatial": ["grid_spatial", "projection"],
+            "measurements": ["measurements"],
+            "creation_dt": ["properties", "odc:processing_datetime"],
+            "label": ["label"],
+            "format": ["properties", "odc:file_format"],
+            "search_fields": {
+                "time": {
+                    "description": "Acquisition time range",
+                    "type": "datetime-range",
+                    "min_offset": [
+                        ["properties", "dtr:start_datetime"],
+                        ["properties", "datetime"],
+                    ],
+                    "max_offset": [
+                        ["properties", "dtr:end_datetime"],
+                        ["properties", "datetime"],
+                    ],
+                }
+            },
+        },
+    }
