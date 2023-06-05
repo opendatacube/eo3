@@ -38,7 +38,7 @@ def test_embedded_metadata_deprecation(product: Dict, metadata_type: Dict):
     assert "embedded_metadata_type" in msgs.warning_text()
 
 
-def test_embedded_metadata_deprecation(product: Dict, metadata_type: Dict):
+def test_managed_deprecation(product: Dict, metadata_type: Dict):
     product["managed"] = False
     msgs = MessageCatcher(validate_product(product))
     assert not msgs.errors()
