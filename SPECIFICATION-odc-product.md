@@ -157,9 +157,6 @@ load:
       latitude: 1
 ```
 
-In 1.8 other entries (i.e. not crs, resolution or align) in load are ignored.  In 1.9 they will produce warnings,
-and in 2.0 errors.
-
 #### Measurements
 
 The `measurements` section describes the measurements (or bands) that datasets within the product are expected to have.

@@ -227,6 +227,29 @@ def test_storage_warnings(eo3_product):
     assert "storage_tilesize" in warnings
 
 
+def test_storage_nocrs(eo3_product):
+    eo3_product["storage"] = {
+        "resolution": {
+            "x": 15,
+            "y": -15,
+        },
+    }
+    err_msgs = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "storage_nocrs" in err_msgs
+
+
+def test_load_bad_crs(eo3_product):
+    eo3_product["load"] = {
+        "crs": "I-CAN'T-BELIEVE-IT'S-NOT-EPSG:4326",
+        "resolution": {
+            "longitude": 15,
+            "latitude": -15,
+        },
+    }
+    err_msgs = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "load_invalid_crs" in err_msgs
+
+
 def test_load_align_dim(eo3_product):
     eo3_product["load"] = {
         "crs": "EPSG:4326",

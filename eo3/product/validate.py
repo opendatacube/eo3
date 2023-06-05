@@ -3,6 +3,7 @@ import re
 from typing import Dict, Generator, Iterable, Sequence
 
 import numpy as np
+from pyproj.exceptions import CRSError
 from odc.geo import CRS
 
 from eo3 import serialise
@@ -118,6 +119,7 @@ def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
 
 
 def validate_load_hints(doc) -> ValidationMessages:
+    load = doc.get("load")
     if "storage" in doc and "load" in doc:
         yield ValidationMessage.warning(
             "storage_and_load",
@@ -137,40 +139,43 @@ def validate_load_hints(doc) -> ValidationMessages:
                     "storage_tilesize",
                     "Tile size in the storage section is no longer supported and should be removed.",
                 )
-    if "load" in doc:
+        load = doc["storage"]
+    if load:
         crs = None
-        if "crs" not in doc["load"]:
+        if "crs" not in load:
             yield ValidationMessage.error(
-                "load_nocrs",
+                "storage_nocrs",  # Can only occur via storage because of json schema
                 "No CRS provided in load hints",
                 hint="Add a CRS to the load section, or remove the load section",
             )
+            return
         else:
             try:
-                crs = CRS(doc["load"]["crs"])
-            except ValueError:
+                crs = CRS(load["crs"])
+            except CRSError:
                 yield ValidationMessage.error(
-                    "invalid_nocrs",
+                    "load_invalid_crs",
                     "CRS in load hints is not a valid CRS",
                     hint="Use an EPSG code or WKT representation",
                 )
-        if "align" in doc["load"]:
+                return
+        if "align" in load:
             for dimname in crs.dimensions:
-                if dimname not in doc["load"]["align"]:
+                if dimname not in load["align"]:
                     yield ValidationMessage.error(
                         "invalid_align_dim",
                         f"align does not have {dimname} dimension in load hints",
                         hint="Use the CRS coordinate names in align",
                     )
-                elif not isinstance(doc["load"]["align"][dimname], (int, float)):
+                elif not isinstance(load["align"][dimname], (int, float)):
                     yield ValidationMessage.error(
                         "invalid_align_type",
                         f"align for {dimname} dimension in load hints is not a number",
                         hint="Use a number between zero and one",
                     )
                 elif (
-                    doc["load"]["align"][dimname] < 0
-                    or doc["load"]["align"][dimname] > 1
+                    load["align"][dimname] < 0
+                    or load["align"][dimname] > 1
                 ):
                     yield ValidationMessage.warning(
                         "unexpected_align_val",
@@ -178,13 +183,13 @@ def validate_load_hints(doc) -> ValidationMessages:
                         hint="Use a number between zero and one",
                     )
         for dimname in crs.dimensions:
-            if dimname not in doc["load"]["resolution"]:
+            if dimname not in load["resolution"]:
                 yield ValidationMessage.error(
                     "invalid_resolution_dim",
                     f"resolution does not have {dimname} dimension in load hints",
                     hint="Use the CRS coordinate names in resolution",
                 )
-            elif not isinstance(doc["load"]["resolution"][dimname], (int, float)):
+            elif not isinstance(load["resolution"][dimname], (int, float)):
                 yield ValidationMessage.error(
                     "invalid_resolution_type",
                     f"resolution for {dimname} dimension in load hints is not a number",
