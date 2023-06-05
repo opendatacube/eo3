@@ -49,7 +49,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
             "Embedded metadata types are deprecated, please reference metatdata type by name",
         )
 
-    yield from validate_product_metadata(doc.get("metadata"))
+    yield from validate_product_metadata(doc.get("metadata"), doc["name"])
     extra_dims = {}
     yield from validate_extra_dimensions(
         doc.get("extra_dimensions", []), doc["name"], extra_dims
@@ -62,7 +62,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
         )
 
     # Check measurement name clashes etc.
-    if measurements is None:
+    if not measurements:
         # Products have historically not had to have measurements. (eg. provenance-only products)
         yield ValidationMessage.warning(
             "no_measurements", "Products with no measurements are deprecated."
@@ -75,18 +75,44 @@ def validate_product(doc: Dict) -> ValidationMessages:
             )
 
 
-def validate_product_metadata(template: Dict) -> ValidationMessages:
+def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
     for key, value in template.items():
-        if not isinstance(key, str):
-            yield ValidationMessage.error(
-                "nested_metadata", "Nesting of metadata fields is not supported in EO3"
-            )
-            continue
-        if not re.match(r"^[\w:]+", key):
+        if key == "product":
+            for prod_key, prod_val in template["product"].items():
+                if prod_key == "name":
+                    if template["product"]["name"] != name:
+                        yield ValidationMessage.error(
+                            "product_name_mismatch",
+                            "If specified, metadata::product::name must match the product name "
+                            f"(Expected {name}, got {template['product']['name']})"
+                        )
+                    else:
+                        yield ValidationMessage.warning(
+                            "product_name_metadata_deprecated",
+                            "Specifying product::name in the metadata section is deprecated"
+                        )
+                else:
+                    yield ValidationMessage.error(
+                        "invalid_product_metadata",
+                        f"Only the name field is permitted in metadata::product::name ({key})"
+                    )
+        elif key == "properties":
+            for prop_key, prop_val in template["properties"].items():
+                if isinstance(prop_val, dict):
+                    yield ValidationMessage.error(
+                        "nested_metadata", "Nesting of metadata properties is not supported in EO3"
+                    )
+                elif not re.match(r"^[\w:]+$", prop_key):
+                    yield ValidationMessage.error(
+                        "invalid_metadata_properties_key",
+                        f"Invalid metadata field name {prop_key}",
+                        hint="Metadata field names can only contain alphanumeric characters, underscores and colons",
+                    )
+        else:
             yield ValidationMessage.error(
                 "invalid_metadata_key",
-                f"Invalid metadata field name {key}",
-                hint="Metadata field names can only contain alphanumeric characters, underscores and colons",
+                f"Invalid metadata subsection {key}",
+                hint="Metadata section can only contain a properties subsection."
             )
 
 

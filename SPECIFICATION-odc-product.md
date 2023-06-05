@@ -47,6 +47,21 @@ currently validated, but may be in future.
 The `metadata` section contains metadata that all datasets belonging to product are required to match exactly
 with values in datasets' properties section.
 
+In 1.8, product metadata may explicitly include the product name, e.g.:
+
+```
+name: this_product
+....
+metadata:
+    product:
+        name: this_product
+```
+
+If this is included, the specified product name must match the name of the product.  If it is not included,
+it is assumed. 
+
+In 1.9 explicitly specifying the product name in the metadata like this is deprecated, and it will be forbidden in 2.0
+
 For EO3 compatible products, the metadata section should un-nested key-value pairs with EO3-compatible
 key values: alphanumeric plus underscores, with a colon-separated namespace hierarchy.
 E.g. "eo:instrument", "odc:file_format", etc.
