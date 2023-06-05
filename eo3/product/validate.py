@@ -94,7 +94,7 @@ def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
                 else:
                     yield ValidationMessage.error(
                         "invalid_product_metadata",
-                        f"Only the name field is permitted in metadata::product::name ({key})",
+                        f"Only the name field is permitted in metadata::product::name ({prod_key})",
                     )
         elif key == "properties":
             for prop_key, prop_val in template["properties"].items():
@@ -137,7 +137,7 @@ def validate_load_hints(doc) -> ValidationMessages:
                     "storage_tilesize",
                     "Tile size in the storage section is no longer supported and should be removed.",
                 )
-    elif "load" in doc:
+    if "load" in doc:
         crs = None
         if "crs" not in doc["load"]:
             yield ValidationMessage.error(
@@ -177,25 +177,18 @@ def validate_load_hints(doc) -> ValidationMessages:
                         f"align for {dimname} dimension in outside range [0,1]",
                         hint="Use a number between zero and one",
                     )
-        if "resolution" in doc["load"]:
-            for dimname in crs.dimensions:
-                if dimname not in doc["load"]["resolution"]:
-                    yield ValidationMessage.error(
-                        "invalid_resolution_dim",
-                        f"resolution does not have {dimname} dimension in load hints",
-                        hint="Use the CRS coordinate names in resolution",
-                    )
-                elif not isinstance(doc["load"]["align"][dimname], (int, float)):
-                    yield ValidationMessage.error(
-                        "invalid_resolution_type",
-                        f"resolution for {dimname} dimension in load hints is not a number",
-                        hint="Use a number in the CRS units",
-                    )
-        for key in doc["load"].keys():
-            if key not in ("crs", "align", "resolution"):
-                yield ValidationMessage.warning(
-                    "unsupported_load_hint",
-                    f"Unsupported field {key} in load section",
+        for dimname in crs.dimensions:
+            if dimname not in doc["load"]["resolution"]:
+                yield ValidationMessage.error(
+                    "invalid_resolution_dim",
+                    f"resolution does not have {dimname} dimension in load hints",
+                    hint="Use the CRS coordinate names in resolution",
+                )
+            elif not isinstance(doc["load"]["resolution"][dimname], (int, float)):
+                yield ValidationMessage.error(
+                    "invalid_resolution_type",
+                    f"resolution for {dimname} dimension in load hints is not a number",
+                    hint="Use a number in the CRS units",
                 )
 
 
