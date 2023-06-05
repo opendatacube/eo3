@@ -84,23 +84,24 @@ def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
                         yield ValidationMessage.error(
                             "product_name_mismatch",
                             "If specified, metadata::product::name must match the product name "
-                            f"(Expected {name}, got {template['product']['name']})"
+                            f"(Expected {name}, got {template['product']['name']})",
                         )
                     else:
                         yield ValidationMessage.warning(
                             "product_name_metadata_deprecated",
-                            "Specifying product::name in the metadata section is deprecated"
+                            "Specifying product::name in the metadata section is deprecated",
                         )
                 else:
                     yield ValidationMessage.error(
                         "invalid_product_metadata",
-                        f"Only the name field is permitted in metadata::product::name ({key})"
+                        f"Only the name field is permitted in metadata::product::name ({key})",
                     )
         elif key == "properties":
             for prop_key, prop_val in template["properties"].items():
                 if isinstance(prop_val, dict):
                     yield ValidationMessage.error(
-                        "nested_metadata", "Nesting of metadata properties is not supported in EO3"
+                        "nested_metadata",
+                        "Nesting of metadata properties is not supported in EO3",
                     )
                 elif not re.match(r"^[\w:]+$", prop_key):
                     yield ValidationMessage.error(
@@ -112,7 +113,7 @@ def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
             yield ValidationMessage.error(
                 "invalid_metadata_key",
                 f"Invalid metadata subsection {key}",
-                hint="Metadata section can only contain a properties subsection."
+                hint="Metadata section can only contain a properties subsection.",
             )
 
 

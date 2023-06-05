@@ -58,7 +58,7 @@ metadata:
 ```
 
 If this is included, the specified product name must match the name of the product.  If it is not included,
-it is assumed. 
+it is assumed.
 
 In 1.9 explicitly specifying the product name in the metadata like this is deprecated, and it will be forbidden in 2.0
 

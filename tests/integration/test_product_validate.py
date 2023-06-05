@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict
 
 from eo3.product.validate import validate_product
+
 from tests.common import MessageCatcher
 
 

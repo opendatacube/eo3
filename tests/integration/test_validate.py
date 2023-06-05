@@ -197,7 +197,7 @@ def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) 
 @pytest.mark.skip("This check is outside the current callpath.")
 def test_complains_about_product_not_matching(
     l1_ls8_folder_md_expected: Dict,
-        eo3_product,
+    eo3_product,
 ):
     """
     Complains when we're given products but they don't match the dataset
@@ -310,7 +310,7 @@ def test_get_field_offsets(metadata_type: Dict):
 
 def test_dtype_compare_with_product_doc(
     l1_ls8_metadata_path: str,
-        eo3_product,
+    eo3_product,
     l1_ls8_folder_md_expected: Dict,
 ):
     """'thorough' validation should check the dtype of measurements against the product"""
@@ -336,7 +336,7 @@ def test_dtype_compare_with_product_doc(
 
 def test_nodata_compare_with_product_doc(
     l1_ls8_metadata_path: str,
-        eo3_product,
+    eo3_product,
     l1_ls8_folder_md_expected: Dict,
 ):
     """'thorough' validation should check the nodata of measurements against the product"""
@@ -378,7 +378,7 @@ def test_nodata_compare_with_product_doc(
 
 def test_measurements_compare_with_nans(
     l1_ls8_metadata_path: str,
-        eo3_product,
+    eo3_product,
     l1_ls8_folder_md_expected: Dict,
 ):
     """When dataset and product have NaN nodata values, it should handle them correctly"""
@@ -439,7 +439,7 @@ def test_measurements_compare_with_nans(
 
 def test_missing_measurement_from_product(
     l1_ls8_folder_md_expected: Dict,
-        eo3_product,
+    eo3_product,
 ):
     """Validator should notice a missing measurement from the product def"""
     product = eo3_product
@@ -457,7 +457,7 @@ def test_missing_measurement_from_product(
 
 def test_supports_measurementless_products(
     l1_ls8_folder_md_expected: Dict,
-        eo3_product,
+    eo3_product,
 ):
     """
     Validator should support products without any measurements in the document.
