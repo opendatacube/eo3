@@ -951,3 +951,15 @@ def test_invalid_values_flags_definition(eo3_product):
 
     errors = MessageCatcher(validate_product(eo3_product)).error_text()
     assert "bad_bit_value_repr" in errors
+
+    del eo3_product["measurements"][-1]["flags_definition"]["spam"]["values"][5]
+    eo3_product["measurements"][-1]["flags_definition"]["a_mapping"]["values"][
+        -4
+    ] = "cornflakes"
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "bad_bits_value_repr" in errors
+
+    del eo3_product["measurements"][-1]["flags_definition"]["a_mapping"]["values"][-4]
+    eo3_product["measurements"][-1]["flags_definition"]["a_mapping"]["values"][6] = 400
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "bad_flag_value" in errors
