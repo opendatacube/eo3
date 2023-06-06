@@ -848,3 +848,61 @@ def eo3_product():
             },
         ],
     }
+
+
+@pytest.fixture()
+def eo3_extradims_product():
+    """An example valid product definition with an extra dimension."""
+    return {
+        "name": "extradim_test_product",
+        "description": "A test product with an extra dimemsion",
+        "metadata_type": "eo3",
+        "license": "CC-BY-4.0",
+        "metadata": {
+            # "product": {"name": "usgs_ls8c_level1_1"},  DEPRECATED
+            "properties": {
+                "eo:platform": "testplatform",
+                "eo:instrument": "TEST_INSTRUMENT",
+                "odc:product_family": "test_family",
+                "odc:producer": "sample.test",
+            },
+        },
+        "extra_dimensions": [
+            {
+                "name": "dim0",
+                "dtype": "uint8",
+                "values": [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240],
+            },
+        ],
+        "measurements": [
+            {
+                "name": "regular_band_1",
+                "aliases": ["band01"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "regular_band_2",
+                "aliases": ["band02"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "regular_band_3",
+                "aliases": ["band03"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "dim0_band",
+                "aliases": ["band04", "dim_band"],
+                "dtype": "uint8",
+                "nodata": 255,
+                "units": "1",
+                "extra_dim": "dim0",
+            },
+        ],
+    }

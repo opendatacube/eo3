@@ -336,3 +336,618 @@ def test_load_resolution_type(eo3_product):
     assert "invalid_resolution_type" in msg_errs
     assert "longitude" in msg_errs
     assert "latitude" in msg_errs
+
+
+def test_valid_extra_dim(eo3_extradims_product):
+    msgs = MessageCatcher(validate_product(eo3_extradims_product))
+    assert not msgs.errors()
+    assert not msgs.warnings()
+
+
+def test_duplicate_extradim(eo3_extradims_product):
+    eo3_extradims_product["extra_dimensions"].append(
+        {"name": "dim0", "dtype": "uint8", "values": [0, 50, 100, 150, 200, 250]}
+    )
+    msg_errs = MessageCatcher(validate_product(eo3_extradims_product)).error_text()
+    assert "duplicate_extra_dimension" in msg_errs
+
+
+def test_extradim_bad_coords(eo3_extradims_product):
+    eo3_extradims_product["extra_dimensions"][0]["values"] = [0, 100, 200, 300, 400]
+    msg_errs = MessageCatcher(validate_product(eo3_extradims_product)).error_text()
+    assert "unsuitable_coords" in msg_errs
+
+
+def test_bad_extradim_in_measurement(eo3_extradims_product):
+    eo3_extradims_product["measurements"].append(
+        {
+            "name": "dim1_band",
+            "aliases": ["band05", "other_dim_band"],
+            "dtype": "uint8",
+            "nodata": 255,
+            "units": "1",
+            "extra_dim": "dim1",
+        }
+    )
+    msg_errs = MessageCatcher(validate_product(eo3_extradims_product)).error_text()
+    assert "unknown_extra_dimension" in msg_errs
+    assert "dim1" in msg_errs
+
+
+def test_valid_spectral_def_simple(eo3_product):
+    eo3_product["measurements"][0]["spectral_definition"] = {
+        "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+        "response": [0.01, 0.12, 0.29, 0.89, 1.0, 0.92, 0.65, 0.23, 0.12, 0.07, 0.02],
+    }
+    msgs = MessageCatcher(validate_product(eo3_product))
+    assert not msgs.errors()
+    assert not msgs.warnings()
+
+
+def test_valid_spectral_def_extra(eo3_extradims_product):
+    eo3_extradims_product["measurements"][-1]["spectral_definition"] = [
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                1.00,
+                0.82,
+                0.69,
+                0.59,
+                0.33,
+                0.12,
+                0.05,
+                0.03,
+                0.01,
+                0.00,
+                0.00,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.91,
+                1.00,
+                0.89,
+                0.79,
+                0.55,
+                0.32,
+                0.25,
+                0.13,
+                0.02,
+                0.01,
+                0.00,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.51,
+                0.82,
+                1.00,
+                0.94,
+                0.77,
+                0.52,
+                0.45,
+                0.33,
+                0.22,
+                0.17,
+                0.02,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.21,
+                0.42,
+                0.69,
+                1.00,
+                0.91,
+                0.82,
+                0.55,
+                0.33,
+                0.12,
+                0.07,
+                0.02,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.01,
+                0.12,
+                0.29,
+                0.89,
+                1.0,
+                0.92,
+                0.65,
+                0.23,
+                0.12,
+                0.07,
+                0.02,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.01,
+                0.02,
+                0.19,
+                0.49,
+                0.83,
+                1.00,
+                0.75,
+                0.43,
+                0.22,
+                0.17,
+                0.09,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.02,
+                0.19,
+                0.49,
+                0.88,
+                1.00,
+                0.85,
+                0.63,
+                0.42,
+                0.27,
+                0.16,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.02,
+                0.19,
+                0.39,
+                0.65,
+                1.00,
+                1.00,
+                0.95,
+                0.52,
+                0.37,
+                0.22,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.02,
+                0.19,
+                0.39,
+                0.65,
+                0.92,
+                1.00,
+                0.95,
+                0.52,
+                0.37,
+                0.22,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.07,
+                0.19,
+                0.45,
+                0.62,
+                0.88,
+                1.00,
+                0.82,
+                0.67,
+                0.33,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.07,
+                0.19,
+                0.45,
+                0.62,
+                0.88,
+                1.00,
+                1.00,
+                0.77,
+                0.43,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.00,
+                0.09,
+                0.25,
+                0.32,
+                0.68,
+                0.88,
+                0.90,
+                1.00,
+                0.83,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.00,
+                0.00,
+                0.05,
+                0.12,
+                0.38,
+                0.68,
+                0.80,
+                0.95,
+                1.00,
+            ],
+        },
+    ]
+    msgs = MessageCatcher(validate_product(eo3_extradims_product))
+    assert not msgs.errors()
+    assert not msgs.warnings()
+
+
+def test_bad_length_spectral_def_extra(eo3_extradims_product):
+    eo3_extradims_product["measurements"][-1]["spectral_definition"] = [
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.21,
+                0.42,
+                0.69,
+                1.00,
+                0.91,
+                0.82,
+                0.55,
+                0.33,
+                0.12,
+                0.07,
+                0.02,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.01,
+                0.12,
+                0.29,
+                0.89,
+                1.0,
+                0.92,
+                0.65,
+                0.23,
+                0.12,
+                0.07,
+                0.02,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.01,
+                0.02,
+                0.19,
+                0.49,
+                0.83,
+                1.00,
+                0.75,
+                0.43,
+                0.22,
+                0.17,
+                0.09,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.02,
+                0.19,
+                0.49,
+                0.88,
+                1.00,
+                0.85,
+                0.63,
+                0.42,
+                0.27,
+                0.16,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.02,
+                0.19,
+                0.39,
+                0.65,
+                1.00,
+                1.00,
+                0.95,
+                0.52,
+                0.37,
+                0.22,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.02,
+                0.19,
+                0.39,
+                0.65,
+                0.92,
+                1.00,
+                0.95,
+                0.52,
+                0.37,
+                0.22,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.07,
+                0.19,
+                0.45,
+                0.62,
+                0.88,
+                1.00,
+                0.82,
+                0.67,
+                0.33,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.07,
+                0.19,
+                0.45,
+                0.62,
+                0.88,
+                1.00,
+                1.00,
+                0.77,
+                0.43,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.00,
+                0.09,
+                0.25,
+                0.32,
+                0.68,
+                0.88,
+                0.90,
+                1.00,
+                0.83,
+            ],
+        },
+        {
+            "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+            "response": [
+                0.00,
+                0.00,
+                0.00,
+                0.00,
+                0.05,
+                0.12,
+                0.38,
+                0.68,
+                0.80,
+                0.95,
+                1.00,
+            ],
+        },
+    ]
+    errors = MessageCatcher(validate_product(eo3_extradims_product)).error_text()
+    assert "bad_extradim_spectra" in errors
+
+
+def test_invalid_spectral_def_simple(eo3_product):
+    eo3_product["measurements"][0]["spectral_definition"] = {
+        "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+    }
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "invalid_spectral_definition" in errors
+
+
+def test_mismatched_spectral_def_simple(eo3_product):
+    eo3_product["measurements"][0]["spectral_definition"] = {
+        "wavelength": [440, 480, 520, 570, 610, 650, 720, 790, 800, 850, 920],
+        "response": [
+            0.01,
+            0.12,
+            0.29,
+            0.89,
+            1.0,
+            0.92,
+            0.65,
+            0.23,
+            0.12,
+            0.07,
+            0.02,
+            0.01,
+            0.00,
+        ],
+    }
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "mismatched_spectral_definition" in errors
+
+
+def test_valid_bit_flags_definition(eo3_product):
+    eo3_product["measurements"].append(
+        {
+            "name": "qa_band",
+            "aliases": ["qa", "bitmask"],
+            "dtype": "uint8",
+            "nodata": 0,
+            "units": "none",
+            "flags_definition": {
+                "nodata": {
+                    "bits": 0,
+                    "values": {0: False, 1: True},
+                    "description": "No data flag",
+                },
+                "spam": {
+                    "bits": 2,
+                    "values": {0: False, 1: True},
+                    "description": "Pixel contains spam",
+                },
+                "sausage": {
+                    "bits": 3,
+                    "values": {0: False, 1: True},
+                    "description": "Pixel contains sausage",
+                },
+                "egg": {
+                    "bits": 6,
+                    "values": {0: False, 1: True},
+                    "description": "Pixel contains egg",
+                },
+                "eggless": {
+                    "bits": 6,
+                    "values": {0: True, 1: False},
+                    "description": "Pixel does not contain egg",
+                },
+            },
+        }
+    )
+    msgs = MessageCatcher(validate_product(eo3_product))
+    assert not msgs.errors()
+    assert not msgs.warnings()
+
+
+def test_valid_categorical_flags_definition(eo3_product):
+    eo3_product["measurements"].append(
+        {
+            "name": "qa_band",
+            "aliases": ["qa", "bitmask"],
+            "dtype": "uint8",
+            "nodata": 0,
+            "units": "none",
+            "flags_definition": {
+                "a_mapping": {
+                    "bits": [0, 1, 2, 3, 4, 5, 6, 7],
+                    "values": {
+                        0: "nodata",
+                        1: "spam",
+                        2: "eggs",
+                        3: "sausage",
+                        4: "more spam",
+                        5: "bacon",
+                    },
+                    "description": "But I don't like spam!",
+                },
+            },
+        }
+    )
+    msgs = MessageCatcher(validate_product(eo3_product))
+    assert not msgs.errors()
+    assert not msgs.warnings()
+
+
+def test_nonint_bits_flags_definition(eo3_product):
+    eo3_product["measurements"].append(
+        {
+            "name": "qa_band",
+            "aliases": ["qa", "bitmask"],
+            "dtype": "uint8",
+            "nodata": 0,
+            "units": "none",
+            "flags_definition": {
+                "a_mapping": {
+                    "bits": 2.5,
+                    "values": {
+                        0: "nodata",
+                        1: "spam",
+                        2: "eggs",
+                        3: "sausage",
+                        4: "more spam",
+                        5: "bacon",
+                    },
+                    "description": "But I don't like spam!",
+                },
+            },
+        }
+    )
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "non_integer_bits" in errors
+
+    eo3_product["measurements"][-1]["flags_definition"]["a_mapping"]["bits"] = -3
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "non_integer_bits" in errors
+
+    eo3_product["measurements"][-1]["flags_definition"]["a_mapping"]["bits"] = [
+        0,
+        1,
+        2,
+        2.3,
+    ]
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "non_integer_bits" in errors
+
+    eo3_product["measurements"][-1]["flags_definition"]["a_mapping"]["bits"] = [
+        0,
+        1,
+        2,
+        -3,
+    ]
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "non_integer_bits" in errors
+
+
+def test_invalid_values_flags_definition(eo3_product):
+    eo3_product["measurements"].append(
+        {
+            "name": "qa_band",
+            "aliases": ["qa", "bitmask"],
+            "dtype": "uint8",
+            "nodata": 0,
+            "units": "none",
+            "flags_definition": {
+                "a_mapping": {
+                    "bits": [0, 1, 2, 2, 3, 4, 5, 6, 7],
+                    "values": {
+                        0: "nodata",
+                        1: "spam",
+                        2: "eggs",
+                        3: "sausage",
+                        4: "more spam",
+                        5: "bacon",
+                    },
+                    "description": "But I don't like spam!",
+                },
+                "spam": {
+                    "bits": 2,
+                    "values": {0: False, 1: True, 5: "woah!"},
+                    "description": "Pixel contains spam",
+                },
+            },
+        }
+    )
+
+    errors = MessageCatcher(validate_product(eo3_product)).error_text()
+    assert "bad_bit_value_repr" in errors

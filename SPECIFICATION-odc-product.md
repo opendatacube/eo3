@@ -213,28 +213,28 @@ Bitflag example:
 ```
 flags_definition:
    nodata:
-     // Bit 1 = 1(0x1)
+     // Bit 0 = 1(0x1)
      bits: 0
      values:
        0: False
        1: True
      description: No data flags_definition:
    spam:
-     // Bit 2 = 2(0x2)
+     // Bit 2 = 4(0x4)
      bits: 2
      values:
        0: False
        1: True
      description: Pixel contains spam
    sausage:
-     // Bit 3 = 4(0x4)
+     // Bit 3 = 8(0x8)
      bits: 3
      values:
        0: False
        1: True
      description: Pixel contains sausage
    eggs:
-     // Bit 6 = 32(0x12)
+     // Bit 6 = 64(0x40)
      bits: 6
      values:
        0: False

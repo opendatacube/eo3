@@ -3,8 +3,8 @@ import re
 from typing import Dict, Generator, Iterable, Sequence
 
 import numpy as np
-from pyproj.exceptions import CRSError
 from odc.geo import CRS
+from pyproj.exceptions import CRSError
 
 from eo3 import serialise
 from eo3.utils import _is_nan
@@ -173,10 +173,7 @@ def validate_load_hints(doc) -> ValidationMessages:
                         f"align for {dimname} dimension in load hints is not a number",
                         hint="Use a number between zero and one",
                     )
-                elif (
-                    load["align"][dimname] < 0
-                    or load["align"][dimname] > 1
-                ):
+                elif load["align"][dimname] < 0 or load["align"][dimname] > 1:
                     yield ValidationMessage.warning(
                         "unexpected_align_val",
                         f"align for {dimname} dimension in outside range [0,1]",
@@ -269,7 +266,7 @@ def validate_product_measurement(
             # equal to length of dimension coordinate list
             if "spectral_definition" in measurement:
                 if len(measurement["spectral_definition"]) != len(
-                    extra_dims[measurement["extra_dims"]].get("values", [])
+                    extra_dims[measurement["extra_dim"]].get("values", [])
                 ):
                     yield ValidationMessage.error(
                         "bad_extradim_spectra",
@@ -324,7 +321,7 @@ def validate_flags_definition(flags: Dict) -> ValidationMessages:
                     f"Flag definition bits must be a positive integer, "
                     f"or a list of positive integers (found {flag_def['bits']})",
                 )
-            continue
+                continue
         if not singlebit:
             for bit in flag_def["bits"]:
                 if not isinstance(bit, int):
@@ -385,9 +382,6 @@ def numpy_value_fits_dtype(value, dtype):
     False
     """
     dtype = np.dtype(dtype)
-
-    if value is None:
-        value = 0
 
     if _is_nan(value):
         return np.issubdtype(dtype, np.floating)
