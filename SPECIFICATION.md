@@ -1,3 +1,3 @@
 ## TODO
 
-Placeholder for formal EO3 specification.
+Placeholder for formal EO3 dataset specification.

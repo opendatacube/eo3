@@ -1,9 +1,7 @@
 """
 Validate ODC dataset documents
 """
-import collections
 import enum
-import math
 from datetime import datetime
 from pathlib import Path
 from textwrap import indent
@@ -25,7 +23,6 @@ from urllib.parse import urlparse
 import attr
 import cattr
 import ciso8601
-import numpy as np
 import rasterio
 import toolz
 from attr import Factory, define, field, frozen
@@ -38,16 +35,25 @@ from shapely.validation import explain_validity
 
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
+from eo3.metadata.validate import validate_metadata_type
 from eo3.model import Eo3DatasetDocBase
+from eo3.product.validate import validate_product
 from eo3.ui import is_absolute, uri_resolve
 from eo3.uris import is_url
 from eo3.utils import (
     EO3_SCHEMA,
     InvalidDocException,
+    _is_nan,
     contains,
     default_utc,
     load_documents,
     read_documents,
+)
+from eo3.validation_msg import (
+    ContextualMessager,
+    Level,
+    ValidationMessage,
+    ValidationMessages,
 )
 
 DEFAULT_NULLABLE_FIELDS = ("label",)
@@ -55,12 +61,6 @@ DEFAULT_OPTIONAL_FIELDS = (
     # Older product do not have this field at all, and when not specified it is considered stable.
     "dataset_maturity",
 )
-
-
-class Level(enum.Enum):
-    info = 1
-    warning = 2
-    error = 3
 
 
 class DocKind(enum.Enum):
@@ -143,63 +143,6 @@ def guess_kind_from_contents(doc: Dict):
     return None
 
 
-@frozen
-class ValidationMessage:
-    level: Level
-    code: str
-    reason: str
-    hint: str = None
-    #: What was assumed when validating this? Eg: dict(product='ls7_nbar', metadata_type='eo3')
-    context: dict = None
-
-    def __str__(self) -> str:
-        hint = ""
-        if self.hint:
-            hint = f" (Hint: {self.hint})"
-        return f"{self.code}: {self.reason}{hint}"
-
-
-def _info(code: str, reason: str, hint: str = None):
-    return ValidationMessage(Level.info, code, reason, hint=hint)
-
-
-def _warning(code: str, reason: str, hint: str = None):
-    return ValidationMessage(Level.warning, code, reason, hint=hint)
-
-
-def _error(code: str, reason: str, hint: str = None):
-    return ValidationMessage(Level.error, code, reason, hint=hint)
-
-
-ValidationMessages = Generator[ValidationMessage, None, None]
-
-
-class ContextualMessager:
-    def __init__(self, context: dict):
-        self.context = context
-        self.errors = 0
-
-    def info(self, code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.info, code, reason, hint=hint, context=self.context
-        )
-
-    def warning(self, code: str, reason: str, hint: str = None):
-        return ValidationMessage(
-            Level.warning, code, reason, hint=hint, context=self.context
-        )
-
-    def error(self, code: str, reason: str, hint: str = None):
-        self.errors += 1
-        return ValidationMessage(
-            Level.error, code, reason, hint=hint, context=self.context
-        )
-
-
-ValidationMessages = Generator[ValidationMessage, None, None]
-
-
-# REVISIT: Do we want this here? feels kinda high level, but seems safe.
 @frozen(init=True)
 class ValidationExpectations:
     """
@@ -527,7 +470,7 @@ def _validate_ds_against_data(
                 band_dtype = ds.dtypes[band - 1]
                 # TODO: NaN handling
                 if expected_dtype != band_dtype:
-                    yield _error(
+                    yield ValidationMessage.error(
                         "different_dtype",
                         f"{name} dtype: "
                         f"product {expected_dtype!r} != dataset {band_dtype!r}",
@@ -561,143 +504,6 @@ def _has_offset(doc: Dict, offset: List[str]) -> bool:
             return False
         doc = doc[key]
     return True
-
-
-def validate_product(doc: Dict) -> ValidationMessages:
-    """
-    Check for common product mistakes
-    """
-
-    # Validate it against ODC's product schema.
-    has_doc_errors = False
-    for error in serialise.PRODUCT_SCHEMA.iter_errors(doc):
-        has_doc_errors = True
-        displayable_path = ".".join(map(str, error.absolute_path))
-        context = f"({displayable_path}) " if displayable_path else ""
-        yield _error("document_schema", f"{context}{error.message} ")
-
-    # The jsonschema error message for this (common error) is garbage. Make it clearer.
-    measurements = doc.get("measurements")
-    if (measurements is not None) and not isinstance(measurements, Sequence):
-        yield _error(
-            "measurements_list",
-            f"Product measurements should be a list/sequence "
-            f"(Found a {type(measurements).__name__!r}).",
-        )
-
-    # There's no point checking further if the core doc structure is wrong.
-    if has_doc_errors:
-        return
-
-    if not doc.get("license", "").strip():
-        yield _warning(
-            "no_license",
-            f"Product {doc['name']!r} has no license field",
-            hint='Eg. "CC-BY-4.0" (SPDX format), "various" or "proprietary"',
-        )
-
-    # Check measurement name clashes etc.
-    if measurements is None:
-        # Products don't have to have measurements. (eg. provenance-only products)
-        ...
-    else:
-        seen_names_and_aliases = collections.defaultdict(list)
-        for measurement in measurements:
-            measurement_name = measurement.get("name")
-            dtype = measurement.get("dtype")
-            nodata = measurement.get("nodata")
-            if not numpy_value_fits_dtype(nodata, dtype):
-                yield _error(
-                    "unsuitable_nodata",
-                    f"Measurement {measurement_name!r} nodata {nodata!r} does not fit a {dtype!r}",
-                )
-
-            # Were any of the names seen in other measurements?
-            these_names = measurement_name, *measurement.get("aliases", ())
-            for new_field_name in these_names:
-                measurements_with_this_name = seen_names_and_aliases[new_field_name]
-                if measurements_with_this_name:
-                    seen_in = " and ".join(
-                        repr(s)
-                        for s in ([measurement_name] + measurements_with_this_name)
-                    )
-
-                    # If the same name is used by different measurements, its a hard error.
-                    yield _error(
-                        "duplicate_measurement_name",
-                        f"Name {new_field_name!r} is used by multiple measurements",
-                        hint=f"It's duplicated in an alias. "
-                        f"Seen in measurement(s) {seen_in}",
-                    )
-
-            # Are any names duplicated within the one measurement? (not an error, but info)
-            for duplicate_name in _find_duplicates(these_names):
-                yield _info(
-                    "duplicate_alias_name",
-                    f"Measurement {measurement_name!r} has a duplicate alias named {duplicate_name!r}",
-                )
-
-            for field_ in these_names:
-                seen_names_and_aliases[field_].append(measurement_name)
-
-
-def validate_metadata_type(doc: Dict) -> ValidationMessages:
-    """
-    Check for common metadata-type mistakes
-    """
-
-    # Validate it against ODC's schema (there will be refused by ODC otherwise)
-    for error in serialise.METADATA_TYPE_SCHEMA.iter_errors(doc):
-        displayable_path = ".".join(map(str, error.absolute_path))
-        context = f"({displayable_path}) " if displayable_path else ""
-        yield _error("document_schema", f"{context}{error.message} ")
-
-
-def _find_duplicates(values: Iterable[str]) -> Generator[str, None, None]:
-    """Return any duplicate values in the given sequence
-
-    >>> list(_find_duplicates(('a', 'b', 'c')))
-    []
-    >>> list(_find_duplicates(('a', 'b', 'b')))
-    ['b']
-    >>> list(_find_duplicates(('a', 'b', 'b', 'a')))
-    ['a', 'b']
-    """
-    previous = None
-    for v in sorted(values):
-        if v == previous:
-            yield v
-        previous = v
-
-
-def numpy_value_fits_dtype(value, dtype):
-    """
-    Can the value be exactly represented by the given numpy dtype?
-
-    >>> numpy_value_fits_dtype(3, 'uint8')
-    True
-    >>> numpy_value_fits_dtype(3, np.dtype('uint8'))
-    True
-    >>> numpy_value_fits_dtype(-3, 'uint8')
-    False
-    >>> numpy_value_fits_dtype(3.5, 'float32')
-    True
-    >>> numpy_value_fits_dtype(3.5, 'int16')
-    False
-    >>> numpy_value_fits_dtype(float('NaN'), 'float32')
-    True
-    >>> numpy_value_fits_dtype(float('NaN'), 'int32')
-    False
-    """
-    dtype = np.dtype(dtype)
-
-    if value is None:
-        value = 0
-
-    if _is_nan(value):
-        return np.issubdtype(dtype, np.floating)
-    else:
-        return np.all(np.array([value], dtype=dtype) == [value])
 
 
 @define
@@ -735,7 +541,7 @@ def validate_paths(
             if kind and (kind in DOC_TYPE_SUFFIXES):
                 # It looks like an ODC doc but doesn't have the standard suffix.
                 messages.append(
-                    _warning(
+                    ValidationMessage.warning(
                         "missing_suffix",
                         f"Document looks like a {kind.name} but does not have "
                         f'filename extension "{DOC_TYPE_SUFFIXES[kind]}{_readable_doc_extension(url)}"',
@@ -996,7 +802,7 @@ def _match_product(
 
         difference_hint = _differences_as_hint(closest_differences)
         return None, [
-            _error(
+            ValidationMessage.error(
                 "unknown_product",
                 "Dataset does not match the given products",
                 hint=f"Closest match is {closest_product_name}, with differences:"
@@ -1012,7 +818,7 @@ def _match_product(
                 _get_product_mismatch_reasons(dataset_doc, product)
             )
             messages.append(
-                _info(
+                ValidationMessage.info(
                     "strange_product_claim",
                     f"Dataset claims to be product {specified_product_name!r}, but doesn't match its fields",
                     hint=f"{difference_hint}",
@@ -1020,7 +826,7 @@ def _match_product(
             )
         else:
             messages.append(
-                _info(
+                ValidationMessage.info(
                     "unknown_product_claim",
                     f"Dataset claims to be product {specified_product_name!r}, but it wasn't supplied.",
                 )
@@ -1029,7 +835,7 @@ def _match_product(
     if len(matching_products) > 1:
         matching_names = ", ".join(matching_products.keys())
         messages.append(
-            _error(
+            ValidationMessage.error(
                 "product_match_clash",
                 "Multiple products match the given dataset",
                 hint=f"Maybe you need more fields in the 'metadata' section?\n"
@@ -1085,7 +891,7 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessage
                             # Both are NaNs, ignore.
                             pass
                         else:
-                            yield _warning(
+                            yield ValidationMessage.warning(
                                 "property_formatting",
                                 f"Property {value!r} expected to be {normalised_value!r}",
                             )
@@ -1109,13 +915,6 @@ def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessage
             "Property 'odc:file_format' is empty",
             hint="Usually 'GeoTIFF'",
         )
-
-
-def _is_nan(v):
-    # Due to JSON serialisation, nan can also be represented as a string 'NaN'
-    if isinstance(v, str):
-        return v == "NaN"
-    return isinstance(v, float) and math.isnan(v)
 
 
 def _validate_geo(

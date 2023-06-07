@@ -488,3 +488,11 @@ def contains(v1: Changable, v2: Changable, case_sensitive: bool = False) -> bool
         )
 
     return v1 == v2
+
+
+def _is_nan(v):
+    # Due to JSON serialisation, nan can also be represented as a string 'NaN'
+    # TODO: Do we need something similar for Inf and -Inf?
+    if isinstance(v, str):
+        return v == "NaN"
+    return isinstance(v, float) and math.isnan(v)

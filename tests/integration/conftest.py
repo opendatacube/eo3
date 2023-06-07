@@ -681,3 +681,228 @@ def input_uint8_tif() -> Path:
 @pytest.fixture
 def input_uint8_tif_2() -> Path:
     return Path(WOFS_PATH / "ga_ls_wofs_3_090081_1993_01_05_interim_water_clipped.tif")
+
+
+@pytest.fixture()
+def metadata_type():
+    return {
+        "name": "eo3",
+        "description": "Minimal EO3-like",
+        "dataset": {
+            "id": ["id"],
+            "sources": ["lineage", "source_datasets"],
+            "grid_spatial": ["grid_spatial", "projection"],
+            "measurements": ["measurements"],
+            "creation_dt": ["properties", "odc:processing_datetime"],
+            "label": ["label"],
+            "format": ["properties", "odc:file_format"],
+            "search_fields": {
+                "time": {
+                    "description": "Acquisition time range",
+                    "type": "datetime-range",
+                    "min_offset": [
+                        ["properties", "dtr:start_datetime"],
+                        ["properties", "datetime"],
+                    ],
+                    "max_offset": [
+                        ["properties", "dtr:end_datetime"],
+                        ["properties", "datetime"],
+                    ],
+                }
+            },
+        },
+    }
+
+
+@pytest.fixture()
+def product():
+    return dict(
+        name="simple_test_product",
+        description="Our test product",
+        metadata={},
+        license="CC-BY-SA-4.0",
+        metadata_type="eo3",
+        measurements=[dict(name="blue", units="1", dtype="uint8", nodata=255)],
+        default_allowances=dict(
+            # Allow anything used in test data. We don't need to test this warning except when done explicitly.
+            allow_extra_measurements=[
+                "cirrus",
+                "coastal_aerosol",
+                "green",
+                "lwir_1",
+                "lwir_2",
+                "nir",
+                "panchromatic",
+                "quality",
+                "red",
+                "swir_1",
+                "swir_2",
+            ],
+        ),
+    )
+
+
+@pytest.fixture()
+def eo3_product():
+    """An example valid product definition, suiting the l1_ls8_dataset fixture."""
+    return {
+        "name": "usgs_ls8c_level1_1",
+        "description": "United States Geological Survey Landsat 8 "
+        "Operational Land Imager and Thermal Infra-Red Scanner Level 1 Collection 1",
+        "metadata_type": "eo3_landsat_l1",
+        "license": "CC-BY-4.0",
+        "metadata": {
+            # "product": {"name": "usgs_ls8c_level1_1"},  DEPRECATED
+            "properties": {
+                "eo:platform": "landsat-8",
+                "eo:instrument": "OLI_TIRS",
+                "odc:product_family": "level1",
+                "odc:producer": "usgs.gov",
+                "landsat:collection_number": 1,
+            },
+        },
+        "measurements": [
+            {
+                "name": "coastal_aerosol",
+                "aliases": ["band01"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "blue",
+                "aliases": ["band02"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "green",
+                "aliases": ["band03"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "red",
+                "aliases": ["band04"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "nir",
+                "aliases": ["band05"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "swir_1",
+                "aliases": ["band06"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "swir_2",
+                "aliases": ["band07"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "panchromatic",
+                "aliases": ["band08"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "cirrus",
+                "aliases": ["band09"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "lwir_1",
+                "aliases": ["band10"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "lwir_2",
+                "aliases": ["band11"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "quality",
+                "aliases": ["bqa"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+        ],
+    }
+
+
+@pytest.fixture()
+def eo3_extradims_product():
+    """An example valid product definition with an extra dimension."""
+    return {
+        "name": "extradim_test_product",
+        "description": "A test product with an extra dimemsion",
+        "metadata_type": "eo3",
+        "license": "CC-BY-4.0",
+        "metadata": {
+            # "product": {"name": "usgs_ls8c_level1_1"},  DEPRECATED
+            "properties": {
+                "eo:platform": "testplatform",
+                "eo:instrument": "TEST_INSTRUMENT",
+                "odc:product_family": "test_family",
+                "odc:producer": "sample.test",
+            },
+        },
+        "extra_dimensions": [
+            {
+                "name": "dim0",
+                "dtype": "uint8",
+                "values": [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240],
+            },
+        ],
+        "measurements": [
+            {
+                "name": "regular_band_1",
+                "aliases": ["band01"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "regular_band_2",
+                "aliases": ["band02"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "regular_band_3",
+                "aliases": ["band03"],
+                "dtype": "uint16",
+                "nodata": 65535,
+                "units": "1",
+            },
+            {
+                "name": "dim0_band",
+                "aliases": ["band04", "dim_band"],
+                "dtype": "uint8",
+                "nodata": 255,
+                "units": "1",
+                "extra_dim": "dim0",
+            },
+        ],
+    }
