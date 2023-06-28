@@ -9,7 +9,8 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 import ciso8601
 from ruamel.yaml.timestamp import TimeStamp as RuamelTimeStamp
 
-from eo3.utils import default_utc
+from eo3.utils import default_utc, _is_nan
+from eo3.validation_msg import ContextualMessager, ValidationMessages, ValidationMessage
 
 
 class FileFormat(Enum):
@@ -142,6 +143,7 @@ class Eo3DictBase(collections.abc.MutableMapping):
     """
 
     # Every property we know about.  Subclasses should extend this mapping.
+    # TODO: Really need to add at least dataset maturity and region code
     KNOWN_PROPERTIES: Mapping[str, Optional[NormaliseValueFn]] = {
         "datetime": datetime_type,
         "dtr:end_datetime": datetime_type,
@@ -240,6 +242,65 @@ class Eo3DictBase(collections.abc.MutableMapping):
 
     def nested(self):
         return nest_properties(self._props)
+
+
+    def validate_eo3_properties(self, msg: ContextualMessager) -> ValidationMessages:
+        for name, value in self.items():
+            yield from self.validate_eo3_property(name, value, msg)
+
+        # ODC requires this
+        if not self.get("odc:file_format"):
+            yield msg.error(
+                "global_file_format",
+                "Property 'odc:file_format' is empty",
+                hint="Usually 'GeoTIFF'",
+            )
+
+    def validate_eo3_property(self, name, value, msg: ContextualMessager) -> ValidationMessages:
+        if name in self.KNOWN_PROPERTIES:
+            normaliser = self.KNOWN_PROPERTIES.get(name)
+            if normaliser and value is not None:
+                try:
+                    normalised_value = normaliser(value)
+                    # A normaliser can return two values, the latter adding extra extracted fields.
+                    if isinstance(normalised_value, tuple):
+                        normalised_value = normalised_value[0]
+
+                    # It's okay for datetimes to be strings
+                    # .. since ODC's own loader does that.
+                    if isinstance(normalised_value, datetime) and isinstance(
+                            value, str
+                    ):
+                        value = ciso8601.parse_datetime(value)
+
+                    # Special case for dates, as "no timezone" and "utc timezone" are treated identical.
+                    if isinstance(value, datetime):
+                        value = default_utc(value)
+
+                    if not isinstance(value, type(normalised_value)):
+                        yield msg.warning(
+                            "property_type",
+                            f"Value {value} expected to be "
+                            f"{type(normalised_value).__name__!r} (got {type(value).__name__!r})",
+                        )
+                    elif normalised_value != value:
+                        if _is_nan(normalised_value) and _is_nan(value):
+                            # Both are NaNs, ignore.
+                            pass
+                        else:
+                            yield ValidationMessage.warning(
+                                "property_formatting",
+                                f"Property {value!r} expected to be {normalised_value!r}",
+                            )
+                except ValueError as e:
+                    yield msg.error("invalid_property", f"{name!r}: {e.args[0]}")
+        if name == "odc:producer":
+            # We use domain name to avoid arguing about naming conventions ('ga' vs 'geoscience-australia' vs ...)
+            if "." not in self["odc:producer"]:
+                yield msg.warning(
+                    "producer_domain",
+                    "Property 'odc:producer' should be the organisation's domain name. Eg. 'ga.gov.au'",
+                )
 
 
 class PropertyOverrideWarning(UserWarning):

@@ -246,17 +246,16 @@ def validate_dataset(
     if msg.errors:
         return
 
-    # Note that a dataset may have no measurements (eg. telemetry data).
-    # (TODO: a stricter mode for when we know we should have geo and measurement info)
-    # Is it even meaningful to have one and not the other?
-    if dataset.measurements:
-        yield from _validate_measurements(dataset, msg)
-        if msg.errors:
-            return
+    # Previously a dataset could have no measurements (eg. telemetry data).
+    if expect.require_geometry:
+        if dataset.measurements:
+            yield from _validate_measurements(dataset, msg)
+            if msg.errors:
+                    return
 
     # Base properties
-    # TODO: How to make this step more extensible
-    yield from _validate_stac_properties(dataset, msg)
+    # Validation is implemented in Eo3DictBase so it can be extended
+    yield from dataset.properties.validate_eo3_properties(dataset, msg)
     if msg.errors:
         return
 
@@ -862,7 +861,7 @@ def _differences_as_hint(product_diffs):
     return indent("\n".join(product_diffs), prefix="\t")
 
 
-def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
+def _validate_eo3_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
     for name, value in dataset.properties.items():
         if name in dataset.properties.KNOWN_PROPERTIES:
             normaliser = dataset.properties.KNOWN_PROPERTIES.get(name)
