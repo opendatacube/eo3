@@ -13,9 +13,21 @@ EO3 Product JSON Schema at:
 
 https://github.com/opendatacube/eo3/blob/develop/eo3/schema/product-schema.yaml
 
-### Top Level
+### Contents
 
-The top level of an EO3 compatible product document contains (or may contain) the following elements:
+The top level of an EO3 compatible product document contains (or may contain) the following elements,
+discussed in detail below:
+
+- name (required)
+- description (required)
+- metadata_type (required)
+- license (optional, but strongly recommended)
+- metadata (required)
+- extra_dimensions (optional)
+- storage (optional and deprecated)
+- load (optional)
+- measurements (required)
+- managed (optional and deprecated)
 
 #### Name
 `name` cannot contain whitespace or punctuation - alphanumeric characters (or underscores)
@@ -205,6 +217,9 @@ Define a mapping to some "real" space like so:
 real_value = pixel_value * scale_factor + add_offset
 ```
 
+Note that this mapping is NOT automatically applied on load, the scale factor and offset are stored in
+the metadata for the resulting xarray Dataset and can be applied with the xarray `decode_cf` method.
+
 ##### flags_definition
 
 Provides metadata for categorical and bitflag measurements.
@@ -270,7 +285,7 @@ Categorical data example:
 ```
 
 
-### Managed
+#### Managed
 
 `managed` is an optional boolean field that defaults to false.  It should be true only if the product was created
 with the datacube ingestion API.  Note that the ingestion API is deprecated in v1.9 and will be removed in 2.0,

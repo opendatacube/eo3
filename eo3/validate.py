@@ -237,6 +237,10 @@ def validate_dataset(
     if not dataset.product.href:
         msg.info("product_href", "A url (href) is recommended for products")
 
+    if dataset.locations:
+        msg.warning("dataset_location",
+                    "The location and locations fields are deprecated and will be removed in a future release")
+
     # Validate geometry
     yield from _validate_geo(dataset, msg, expect_geometry=expect.require_geometry)
     if msg.errors:
