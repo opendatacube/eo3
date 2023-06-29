@@ -37,9 +37,9 @@ from shapely.validation import explain_validity
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
 from eo3.metadata.validate import validate_metadata_type
-from eo3.model import Eo3DatasetDocBase, AccessoryDoc
+from eo3.model import AccessoryDoc, Eo3DatasetDocBase
 from eo3.product.validate import validate_product
-from eo3.ui import is_absolute, uri_resolve, get_part
+from eo3.ui import get_part, is_absolute, uri_resolve
 from eo3.uris import is_url
 from eo3.utils import (
     EO3_SCHEMA,
@@ -239,8 +239,10 @@ def validate_dataset(
         msg.info("product_href", "A url (href) is recommended for products")
 
     if dataset.locations:
-        msg.warning("dataset_location",
-                    "The location and locations fields are deprecated and will be removed in a future release")
+        msg.warning(
+            "dataset_location",
+            "The location and locations fields are deprecated and will be removed in a future release",
+        )
 
     # Validate geometry
     yield from _validate_geo(dataset, msg, expect_geometry=expect.require_geometry)
@@ -252,7 +254,7 @@ def validate_dataset(
         if dataset.measurements:
             yield from _validate_measurements(dataset, msg)
             if msg.errors:
-                    return
+                return
 
     # Base properties
     # Validation is implemented in Eo3DictBase so it can be extended
@@ -345,17 +347,19 @@ def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
         if part is not None:
             yield msg.warning(
                 "uri_part",
-                f"measurement {name!r} has a part in the path. (Use band and/or layer instead)"
+                f"measurement {name!r} has a part in the path. (Use band and/or layer instead)",
             )
         if isinstance(part, int):
             if part < 0:
                 yield msg.error(
                     "uri_invalid_part",
-                    f"measurement {name!r} has an invalid part (less than zero) in the path ({part})")
+                    f"measurement {name!r} has an invalid part (less than zero) in the path ({part})",
+                )
         elif isinstance(part, str):
             yield msg.error(
                 "uri_invalid_part",
-                f"measurement {name!r} has an invalid part (non-integer) in the path ({part})")
+                f"measurement {name!r} has an invalid part (non-integer) in the path ({part})",
+            )
 
 
 def _validate_accessory(accessory: AccessoryDoc, msg: ContextualMessager):
@@ -371,15 +375,15 @@ def _validate_lineage(lineage, msg):
         if len(parent_ids) > 1:
             yield msg.info(
                 "nonflat_lineage",
-                f"Lineage label {label} has multiple sources and may get flattened on indexing depending on the index driver"
+                f"Lineage label {label} has multiple sources and may get flattened on indexing "
+                "depending on the index driver",
             )
         for parent_id in parent_ids:
             try:
-                uuid = UUID(parent_id)
+                UUID(parent_id)
             except ValueError:
                 yield msg.error(
-                    "invalid_sourcce_id",
-                    f"Lineage id {parent_id} is not a valid UUID"
+                    "invalid_sourcce_id", f"Lineage id {parent_id} is not a valid UUID"
                 )
 
 

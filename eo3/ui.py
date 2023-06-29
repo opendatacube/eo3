@@ -67,7 +67,7 @@ def get_part(url):
     'one'
     """
     opts = dict(parse_qsl(urlparse(url).fragment))
-    part = opts.get('part')
+    part = opts.get("part")
     if part is None:
         return None
     try:

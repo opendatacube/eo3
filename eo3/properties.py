@@ -9,8 +9,8 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 import ciso8601
 from ruamel.yaml.timestamp import TimeStamp as RuamelTimeStamp
 
-from eo3.utils import default_utc, _is_nan
-from eo3.validation_msg import ContextualMessager, ValidationMessages, ValidationMessage
+from eo3.utils import _is_nan, default_utc
+from eo3.validation_msg import ContextualMessager, ValidationMessage, ValidationMessages
 
 
 class FileFormat(Enum):
@@ -243,7 +243,6 @@ class Eo3DictBase(collections.abc.MutableMapping):
     def nested(self):
         return nest_properties(self._props)
 
-
     def validate_eo3_properties(self, msg: ContextualMessager) -> ValidationMessages:
         for name, value in self.items():
             yield from self.validate_eo3_property(name, value, msg)
@@ -256,7 +255,9 @@ class Eo3DictBase(collections.abc.MutableMapping):
                 hint="Usually 'GeoTIFF'",
             )
 
-    def validate_eo3_property(self, name, value, msg: ContextualMessager) -> ValidationMessages:
+    def validate_eo3_property(
+        self, name, value, msg: ContextualMessager
+    ) -> ValidationMessages:
         if name in self.KNOWN_PROPERTIES:
             normaliser = self.KNOWN_PROPERTIES.get(name)
             if normaliser and value is not None:
@@ -269,7 +270,7 @@ class Eo3DictBase(collections.abc.MutableMapping):
                     # It's okay for datetimes to be strings
                     # .. since ODC's own loader does that.
                     if isinstance(normalised_value, datetime) and isinstance(
-                            value, str
+                        value, str
                     ):
                         value = ciso8601.parse_datetime(value)
 
