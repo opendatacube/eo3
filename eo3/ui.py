@@ -60,9 +60,7 @@ def is_absolute(url):
 def get_part(url):
     """
     >>> get_part('path/to/file.tif')
-    None
     >>> get_part('path/to/file.tif#page=2')
-    None
     >>> get_part('path/to/file.tif#part=3')
     3
     >>> get_part('path/to/file.tif#part=one')

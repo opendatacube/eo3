@@ -256,7 +256,7 @@ def validate_dataset(
 
     # Base properties
     # Validation is implemented in Eo3DictBase so it can be extended
-    yield from dataset.properties.validate_eo3_properties(dataset, msg)
+    yield from dataset.properties.validate_eo3_properties(msg)
     if msg.errors:
         return
 
