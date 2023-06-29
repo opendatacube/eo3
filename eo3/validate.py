@@ -19,6 +19,7 @@ from typing import (
     Union,
 )
 from urllib.parse import urlparse
+from uuid import UUID
 
 import attr
 import cattr
@@ -36,9 +37,9 @@ from shapely.validation import explain_validity
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
 from eo3.metadata.validate import validate_metadata_type
-from eo3.model import Eo3DatasetDocBase
+from eo3.model import Eo3DatasetDocBase, AccessoryDoc
 from eo3.product.validate import validate_product
-from eo3.ui import is_absolute, uri_resolve
+from eo3.ui import is_absolute, uri_resolve, get_part
 from eo3.uris import is_url
 from eo3.utils import (
     EO3_SCHEMA,
@@ -259,6 +260,13 @@ def validate_dataset(
     if msg.errors:
         return
 
+    # Accessories
+    for accessory in dataset.accessories.values():
+        yield from _validate_accessory(accessory, msg)
+
+    # Lineage
+    yield from _validate_lineage(dataset.lineage, msg)
+
     required_measurements: Dict[str, ExpectedMeasurement] = {}
 
     # Validate dataset against product and metadata type definitions
@@ -332,6 +340,47 @@ def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
                 "absolute_path",
                 f"measurement {name!r} has an absolute path: {measurement.path!r}",
             )
+
+        part = get_part(measurement.path)
+        if part is not None:
+            yield msg.warning(
+                "uri_part",
+                f"measurement {name!r} has a part in the path. (Use band and/or layer instead)"
+            )
+        if isinstance(part, int):
+            if part < 0:
+                yield msg.error(
+                    "uri_invalid_part",
+                    f"measurement {name!r} has an invalid part (less than zero) in the path ({part})")
+        elif isinstance(part, str):
+            yield msg.error(
+                "uri_invalid_part",
+                f"measurement {name!r} has an invalid part (non-integer) in the path ({part})")
+
+
+def _validate_accessory(accessory: AccessoryDoc, msg: ContextualMessager):
+    if is_absolute(accessory.path):
+        yield msg.warning(
+            "absolute_path",
+            f"measurement {accessory.name!r} has an absolute path: {accessory.path!r}",
+        )
+
+
+def _validate_lineage(lineage, msg):
+    for label, parent_ids in lineage.items():
+        if len(parent_ids) > 1:
+            yield msg.info(
+                "nonflat_lineage",
+                f"Lineage label {label} has multiple sources and may get flattened on indexing depending on the index driver"
+            )
+        for parent_id in parent_ids:
+            try:
+                uuid = UUID(parent_id)
+            except ValueError:
+                yield msg.error(
+                    "invalid_sourcce_id",
+                    f"Lineage id {parent_id} is not a valid UUID"
+                )
 
 
 def _validate_ds_to_product(
