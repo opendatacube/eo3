@@ -258,6 +258,8 @@ class Eo3DictBase(collections.abc.MutableMapping):
     def validate_eo3_property(
         self, name, value, msg: ContextualMessager
     ) -> ValidationMessages:
+        # Everything has already been through normalise_and_set above, so
+        # most of these errors are untriggerable?
         if name in self.KNOWN_PROPERTIES:
             normaliser = self.KNOWN_PROPERTIES.get(name)
             if normaliser and value is not None:

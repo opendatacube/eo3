@@ -253,6 +253,12 @@ def test_is_legacy_dataset():
     assert guess_kind_from_contents(ds) == DocKind.legacy_dataset
 
 
+def test_is_legacy_ingestion_cfg():
+    """Product documents should be correctly identified as products"""
+    ds = dict(metadata_type="foo", source_type="bar")
+    assert guess_kind_from_contents(ds) == DocKind.ingestion_config
+
+
 def test_is_stac():
     """Product documents should be correctly identified as products"""
     ds = dict(id="spam", properties=dict(datetime="today, right now"))
@@ -306,6 +312,25 @@ def test_get_field_offsets(metadata_type: Dict):
             ],
         ),
     ]
+
+
+def test_validate_ds_with_metadata_doc(
+    l1_ls8_metadata_path: str,
+    metadata_type,
+    l1_ls8_folder_md_expected: Dict,
+):
+    """'thorough' validation should check the dtype of measurements against the product"""
+
+    # When thorough, the dtype and nodata are wrong
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            metadata_type_definition=metadata_type,
+            readable_location=l1_ls8_metadata_path,
+        )
+    )
+    err_text = msgs.error_text()
+    assert not err_text
 
 
 def test_dtype_compare_with_product_doc(
@@ -471,6 +496,22 @@ def test_supports_measurementless_products(
         validate_dataset(l1_ls8_folder_md_expected, product_definition=eo3_product)
     )
     assert not msgs.errors()
+
+
+def test_product_no_href(
+    l1_ls8_folder_md_expected: Dict,
+):
+    """
+    Validator should support products without any measurements in the document.
+
+    These are valid for products which can't be dc.load()'ed but are
+    referred to for provenance, such as DEA's telemetry data or DEA's collection-2
+    Level 1 products.
+    """
+    del l1_ls8_folder_md_expected["product"]["href"]
+    msgs = MessageCatcher(validate_dataset(l1_ls8_folder_md_expected))
+    assert not msgs.errors()
+    assert "product_href" in msgs.info_text()
 
 
 def _measurement(product: Dict, name: str):

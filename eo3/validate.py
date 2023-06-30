@@ -170,6 +170,10 @@ class ValidationExpectations:
     def with_document_overrides(self, doc: Dict):
         """
         Return an instance with any overrides from the given document.
+
+        (TODO: Overrides are passed in in "default_allowances" section of product or metadata
+        document but are not part of the schema, so using them renders the document
+        invalid. Bad API design, IMO.)
         """
         if "default_allowances" not in doc:
             return self
@@ -236,10 +240,10 @@ def validate_dataset(
 
     # non-schema basic validation
     if not dataset.product.href:
-        msg.info("product_href", "A url (href) is recommended for products")
+        yield msg.info("product_href", "A url (href) is recommended for products")
 
     if dataset.locations:
-        msg.warning(
+        yield msg.warning(
             "dataset_location",
             "The location and locations fields are deprecated and will be removed in a future release",
         )
