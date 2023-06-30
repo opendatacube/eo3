@@ -242,10 +242,10 @@ def validate_dataset(
     if not dataset.product.href:
         yield msg.info("product_href", "A url (href) is recommended for products")
 
-    if dataset.locations:
+    if doc.get("location"):
         yield msg.warning(
             "dataset_location",
-            "The location and locations fields are deprecated and will be removed in a future release",
+            "Location is deprecated and will be removed in a future release. Use 'locations' instead.",
         )
 
     # Validate geometry
@@ -263,8 +263,6 @@ def validate_dataset(
     # Base properties
     # Validation is implemented in Eo3DictBase so it can be extended
     yield from dataset.properties.validate_eo3_properties(msg)
-    if msg.errors:
-        return
 
     # Accessories
     for accessory in dataset.accessories.values():
@@ -291,8 +289,6 @@ def validate_dataset(
         yield from _validate_ds_to_metadata_type(
             doc, metadata_type_definition, expect, msg
         )
-        if msg.errors:
-            return
 
     if thorough:
         # Validate contents of actual data against measurement metadata

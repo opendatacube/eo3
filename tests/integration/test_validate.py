@@ -319,8 +319,6 @@ def test_validate_ds_with_metadata_doc(
     metadata_type,
     l1_ls8_folder_md_expected: Dict,
 ):
-    """'thorough' validation should check the dtype of measurements against the product"""
-
     # When thorough, the dtype and nodata are wrong
     msgs = MessageCatcher(
         validate_dataset(
@@ -329,8 +327,57 @@ def test_validate_ds_with_metadata_doc(
             readable_location=l1_ls8_metadata_path,
         )
     )
-    err_text = msgs.error_text()
-    assert not err_text
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+
+
+def test_validate_ds_with_metadata_doc_warnings(
+    l1_ls8_metadata_path: str,
+    metadata_type,
+    l1_ls8_folder_md_expected: Dict,
+):
+    metadata_type["dataset"]["search_fields"]["foobar"] = {
+        "description": "A required property that is missing",
+        "type": "string",
+        "offset": ["properties", "eo3:foobar"],
+    }
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            metadata_type_definition=metadata_type,
+            readable_location=l1_ls8_metadata_path,
+        )
+    )
+    assert not msgs.error_text()
+    warns = msgs.warning_text()
+    assert "missing_field" in warns
+    assert "foobar" in warns
+    l1_ls8_folder_md_expected["properties"]["eo3:foobar"] = None
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            metadata_type_definition=metadata_type,
+            readable_location=l1_ls8_metadata_path,
+        )
+    )
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+    infos = msgs.info_text()
+    assert "null_field" in infos
+    assert "foobar" in infos
+
+
+def test_validate_location_deprec(
+    l1_ls8_folder_md_expected: Dict,
+):
+    l1_ls8_folder_md_expected["location"] = "file:///path/to"
+    # When thorough, the dtype and nodata are wrong
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+        )
+    )
+    assert "dataset_location" in msgs.warning_text()
 
 
 def test_dtype_compare_with_product_doc(
