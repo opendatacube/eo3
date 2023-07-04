@@ -2,7 +2,7 @@ import os
 import urllib.parse
 from pathlib import Path
 from typing import Optional, Union
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qsl, urljoin, urlparse
 
 import click
 
@@ -55,6 +55,25 @@ def is_absolute(url):
     """
     location = urlparse(url)
     return bool(location.scheme or location.netloc) or os.path.isabs(location.path)
+
+
+def get_part(url):
+    """
+    >>> get_part('path/to/file.tif')
+    >>> get_part('path/to/file.tif#page=2')
+    >>> get_part('path/to/file.tif#part=3')
+    3
+    >>> get_part('path/to/file.tif#part=one')
+    'one'
+    """
+    opts = dict(parse_qsl(urlparse(url).fragment))
+    part = opts.get("part")
+    if part is None:
+        return None
+    try:
+        return int(part)
+    except ValueError:
+        return part
 
 
 def register_scheme(*schemes):

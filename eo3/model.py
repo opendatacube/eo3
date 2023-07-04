@@ -96,6 +96,8 @@ class Eo3DatasetDocBase(Eo3InterfaceBase):
     #:
     #: All other paths in the document (measurements, accessories) are relative to the
     #: chosen location.
+    #:
+    #: If not supplied, the directory from which the metadata was read is treated as the root for the data.
     locations: List[str] = None
 
     #: CRS string. Eg. ``epsg:3577``

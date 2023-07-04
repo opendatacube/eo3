@@ -176,18 +176,15 @@ For EO3 compatibility the "lat" and "lon" search fields MUST have the following 
 "time" is STRONGLY recommended to have the following value:
 
 ```
-  search_fields:
-     time:
-        description: Acquisition time
-
-        type: datetime-range
-        min_offset:
-        - [extent, from_dt]
-        - [extent, center_dt]
-        max_offset:
-        - [extent, to_dt]
-        - [extent, center_dt]
-
+  time:
+      description: Acquisition time range
+      type: datetime-range
+      min_offset:
+        - [properties, 'dtr:start_datetime']
+        - [properties, datetime]
+      max_offset:
+        - [properties, 'dtr:end_datetime']
+        - [properties, datetime]
 ```
 
 These values may be enforced in future releases.  "time" may be deprecated and removed in future releases.

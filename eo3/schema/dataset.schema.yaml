@@ -20,7 +20,8 @@ properties:
     properties:
       name:
         type: string
-        pattern: "^[a-z_][a-z0-9_]*$"
+        # Should match name field in product schema.  (alphanumeric plus underscore and hyphen)
+        pattern: '^\w+$'
       href:
         type: string
         format: url

@@ -19,6 +19,7 @@ from typing import (
     Union,
 )
 from urllib.parse import urlparse
+from uuid import UUID
 
 import attr
 import cattr
@@ -27,6 +28,7 @@ import rasterio
 import toolz
 from attr import Factory, define, field, frozen
 from boltons.iterutils import get_path
+from cattrs import ClassValidationError
 from click import echo
 from rasterio import DatasetReader
 from rasterio.crs import CRS
@@ -36,9 +38,9 @@ from shapely.validation import explain_validity
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
 from eo3.metadata.validate import validate_metadata_type
-from eo3.model import Eo3DatasetDocBase
+from eo3.model import AccessoryDoc, Eo3DatasetDocBase
 from eo3.product.validate import validate_product
-from eo3.ui import is_absolute, uri_resolve
+from eo3.ui import get_part, is_absolute, uri_resolve
 from eo3.uris import is_url
 from eo3.utils import (
     EO3_SCHEMA,
@@ -169,6 +171,10 @@ class ValidationExpectations:
     def with_document_overrides(self, doc: Dict):
         """
         Return an instance with any overrides from the given document.
+
+        (TODO: Overrides are passed in in "default_allowances" section of product or metadata
+        document but are not part of the schema, so using them renders the document
+        invalid. Bad API design, IMO.)
         """
         if "default_allowances" not in doc:
             return self
@@ -230,31 +236,58 @@ def validate_dataset(
     if msg.errors:
         return
 
+    # Validate Lineage before serialisation for clearer error reporting. (Get incomprehensible error messages
+    #   for invalid UUIDs)
+    yield from _validate_lineage(doc.get("lineage", {}), msg)
+    if msg.errors:
+        return
+
     # TODO: How to make this step more extensible?
-    dataset = serialise.from_doc(doc, skip_validation=True)
+    try:
+        dataset = serialise.from_doc(doc, skip_validation=True)
+    except ClassValidationError as e:
+
+        def expand(err: ClassValidationError) -> str:
+            expanded = err.message
+            try:
+                for sub_err in err.exceptions:
+                    expanded += expand(sub_err)
+            except AttributeError:
+                pass
+            return expanded
+
+        yield msg.error("serialisation_failure", f"Serialisation failed: {expand(e)}")
+        return
 
     # non-schema basic validation
     if not dataset.product.href:
-        msg.info("product_href", "A url (href) is recommended for products")
+        yield msg.info("product_href", "A url (href) is recommended for products")
+
+    if doc.get("location"):
+        yield msg.warning(
+            "dataset_location",
+            "Location is deprecated and will be removed in a future release. Use 'locations' instead.",
+        )
 
     # Validate geometry
     yield from _validate_geo(dataset, msg, expect_geometry=expect.require_geometry)
     if msg.errors:
         return
 
-    # Note that a dataset may have no measurements (eg. telemetry data).
-    # (TODO: a stricter mode for when we know we should have geo and measurement info)
-    # Is it even meaningful to have one and not the other?
-    if dataset.measurements:
-        yield from _validate_measurements(dataset, msg)
-        if msg.errors:
-            return
+    # Previously a dataset could have no measurements (eg. telemetry data).
+    if expect.require_geometry:
+        if dataset.measurements:
+            yield from _validate_measurements(dataset, msg)
+            if msg.errors:
+                return
 
     # Base properties
-    # TODO: How to make this step more extensible
-    yield from _validate_stac_properties(dataset, msg)
-    if msg.errors:
-        return
+    # Validation is implemented in Eo3DictBase so it can be extended
+    yield from dataset.properties.validate_eo3_properties(msg)
+
+    # Accessories
+    for acc_name, accessory in dataset.accessories.items():
+        yield from _validate_accessory(acc_name, accessory, msg)
 
     required_measurements: Dict[str, ExpectedMeasurement] = {}
 
@@ -274,8 +307,6 @@ def validate_dataset(
         yield from _validate_ds_to_metadata_type(
             doc, metadata_type_definition, expect, msg
         )
-        if msg.errors:
-            return
 
     if thorough:
         # Validate contents of actual data against measurement metadata
@@ -308,7 +339,7 @@ def _validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMess
 
         hint = None
         if displayable_path == "crs" and "not of type" in error.message:
-            hint = "epsg codes should be prefixed with 'epsg:1234'"
+            hint = "epsg codes should be prefixed with 'epsg', e.g. 'epsg:1234'"
 
         context = f"({displayable_path}) " if displayable_path else ""
         yield msg.error("structure", f"{context}{error.message} ", hint=hint)
@@ -329,6 +360,51 @@ def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
                 "absolute_path",
                 f"measurement {name!r} has an absolute path: {measurement.path!r}",
             )
+
+        part = get_part(measurement.path)
+        if part is not None:
+            yield msg.warning(
+                "uri_part",
+                f"measurement {name!r} has a part in the path. (Use band and/or layer instead)",
+            )
+        if isinstance(part, int):
+            if part < 0:
+                yield msg.error(
+                    "uri_invalid_part",
+                    f"measurement {name!r} has an invalid part (less than zero) in the path ({part})",
+                )
+        elif isinstance(part, str):
+            yield msg.error(
+                "uri_invalid_part",
+                f"measurement {name!r} has an invalid part (non-integer) in the path ({part})",
+            )
+
+
+def _validate_accessory(name: str, accessory: AccessoryDoc, msg: ContextualMessager):
+    accessory.name = name
+    if is_absolute(accessory.path):
+        yield msg.warning(
+            "absolute_path",
+            f"Accessory {accessory.name!r} has an absolute path: {accessory.path!r}",
+        )
+
+
+def _validate_lineage(lineage, msg):
+    for label, parent_ids in lineage.items():
+        if len(parent_ids) > 1:
+            yield msg.info(
+                "nonflat_lineage",
+                f"Lineage label {label} has multiple sources and may get flattened on indexing "
+                "depending on the index driver",
+            )
+        for parent_id in parent_ids:
+            try:
+                UUID(parent_id)
+            except ValueError:
+                yield msg.error(
+                    "invalid_source_id",
+                    f"Lineage id in {label} is not a valid UUID {parent_id}",
+                )
 
 
 def _validate_ds_to_product(
@@ -858,7 +934,7 @@ def _differences_as_hint(product_diffs):
     return indent("\n".join(product_diffs), prefix="\t")
 
 
-def _validate_stac_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
+def _validate_eo3_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
     for name, value in dataset.properties.items():
         if name in dataset.properties.KNOWN_PROPERTIES:
             normaliser = dataset.properties.KNOWN_PROPERTIES.get(name)

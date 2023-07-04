@@ -1,6 +1,7 @@
 from pathlib import Path
 from textwrap import dedent
 from typing import Dict, Union
+from uuid import uuid4
 
 import numpy as np
 import pytest
@@ -44,6 +45,12 @@ def test_valid_document_works(example_metadata: Dict):
     assert not msgs.errors()
 
 
+def test_bad_crs(example_metadata: Dict):
+    example_metadata["crs"] = 4326
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "epsg codes should be prefixed" in msgs.error_text()
+
+
 def test_missing_field(example_metadata: Dict):
     """when a required field (id) is missing, validation should fail"""
     del example_metadata["id"]
@@ -56,6 +63,9 @@ def test_invalid_eo3_schema(example_metadata: Dict):
     del example_metadata["$schema"]
     msgs = MessageCatcher(validate_dataset(example_metadata))
     assert "no_schema:" in msgs.error_text()
+    example_metadata["$schema"] = "https://schemas.onepdapatube.org/dataset"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "unknown_doc_type" in msgs.error_text()
 
 
 def test_allow_optional_geo(example_metadata: Dict):
@@ -92,6 +102,51 @@ def test_missing_grid_def(example_metadata: Dict):
     example_metadata["measurements"][a_measurement]["grid"] = "unknown_grid"
     msgs = MessageCatcher(validate_dataset(example_metadata))
     assert "invalid_grid_ref" in msgs.error_text()
+
+
+def test_absolute_path_in_measurement(example_metadata: Dict):
+    """A Measurement refers to a grid that doesn't exist"""
+    a_measurement, *_ = list(example_metadata["measurements"])
+    example_metadata["measurements"][a_measurement][
+        "path"
+    ] = "file:///this/is/an/utter/absolute/path.nc"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    warns = msgs.warning_text()
+    assert "absolute_path" in warns
+    assert a_measurement in warns
+
+
+def test_path_with_part_in_measurement(example_metadata: Dict):
+    """A Measurement refers to a grid that doesn't exist"""
+    a_measurement, *_ = list(example_metadata["measurements"])
+    example_metadata["measurements"][a_measurement]["path"] += "#part=0"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "uri_part" in msgs.warning_text()
+
+    example_metadata["measurements"][a_measurement]["path"] += "#part=nir"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "uri_part" in msgs.warning_text()
+    errs = msgs.error_text()
+    assert "uri_invalid_part" in errs
+    assert "nir" in errs
+
+    example_metadata["measurements"][a_measurement]["path"] += "#part=-22"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "uri_part" in msgs.warning_text()
+    errs = msgs.error_text()
+    assert "uri_invalid_part" in errs
+    assert "-22" in errs
+
+
+def test_absolute_path_in_accessory(example_metadata: Dict):
+    an_accessory, *_ = list(example_metadata["accessories"])
+    example_metadata["accessories"][an_accessory][
+        "path"
+    ] = "file:///this/is/an/utter/absolute/path.nc"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    warns = msgs.warning_text()
+    assert "absolute_path" in warns
+    assert an_accessory in warns
 
 
 def test_invalid_shape(example_metadata: Dict):
@@ -145,6 +200,41 @@ def test_crs_as_wkt(example_metadata: Dict):
     assert not msgs.errors()
     assert "non_epsg" in msgs.warning_text()
     assert "change CRS to 'epsg:32655'" in msgs.warning_text()
+
+
+def test_flat_lineage(example_metadata: Dict):
+    example_metadata["lineage"] = {
+        "spam": [str(uuid4())],
+        "bacon": [str(uuid4())],
+        "eggs": [str(uuid4())],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+    assert "nonflat_lineage" not in msgs.info_text()
+
+
+def test_nonflat_lineage(example_metadata: Dict):
+    example_metadata["lineage"] = {
+        "spam": [str(uuid4()), str(uuid4()), str(uuid4())],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+    assert "nonflat_lineage" in msgs.info_text()
+
+
+def test_non_uuids_in_lineage(example_metadata: Dict):
+    example_metadata["lineage"] = {
+        "spam": [str(uuid4())],
+        "eggs": [str(uuid4()), "scrambled"],
+        "beans": [str(uuid4()), str(uuid4()), str(uuid4())],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    errs = msgs.error_text()
+    assert "invalid_source_id" in errs
+    assert "scrambled" in errs
+    assert "eggs" in errs
 
 
 def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) -> Path:
@@ -253,6 +343,12 @@ def test_is_legacy_dataset():
     assert guess_kind_from_contents(ds) == DocKind.legacy_dataset
 
 
+def test_is_legacy_ingestion_cfg():
+    """Product documents should be correctly identified as products"""
+    ds = dict(metadata_type="foo", source_type="bar")
+    assert guess_kind_from_contents(ds) == DocKind.ingestion_config
+
+
 def test_is_stac():
     """Product documents should be correctly identified as products"""
     ds = dict(id="spam", properties=dict(datetime="today, right now"))
@@ -306,6 +402,72 @@ def test_get_field_offsets(metadata_type: Dict):
             ],
         ),
     ]
+
+
+def test_validate_ds_with_metadata_doc(
+    l1_ls8_metadata_path: str,
+    metadata_type,
+    l1_ls8_folder_md_expected: Dict,
+):
+    # When thorough, the dtype and nodata are wrong
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            metadata_type_definition=metadata_type,
+            readable_location=l1_ls8_metadata_path,
+        )
+    )
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+
+
+def test_validate_ds_with_metadata_doc_warnings(
+    l1_ls8_metadata_path: str,
+    metadata_type,
+    l1_ls8_folder_md_expected: Dict,
+):
+    metadata_type["dataset"]["search_fields"]["foobar"] = {
+        "description": "A required property that is missing",
+        "type": "string",
+        "offset": ["properties", "eo3:foobar"],
+    }
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            metadata_type_definition=metadata_type,
+            readable_location=l1_ls8_metadata_path,
+        )
+    )
+    assert not msgs.error_text()
+    warns = msgs.warning_text()
+    assert "missing_field" in warns
+    assert "foobar" in warns
+    l1_ls8_folder_md_expected["properties"]["eo3:foobar"] = None
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+            metadata_type_definition=metadata_type,
+            readable_location=l1_ls8_metadata_path,
+        )
+    )
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+    infos = msgs.info_text()
+    assert "null_field" in infos
+    assert "foobar" in infos
+
+
+def test_validate_location_deprec(
+    l1_ls8_folder_md_expected: Dict,
+):
+    l1_ls8_folder_md_expected["location"] = "file:///path/to"
+    # When thorough, the dtype and nodata are wrong
+    msgs = MessageCatcher(
+        validate_dataset(
+            l1_ls8_folder_md_expected,
+        )
+    )
+    assert "dataset_location" in msgs.warning_text()
 
 
 def test_dtype_compare_with_product_doc(
@@ -471,6 +633,22 @@ def test_supports_measurementless_products(
         validate_dataset(l1_ls8_folder_md_expected, product_definition=eo3_product)
     )
     assert not msgs.errors()
+
+
+def test_product_no_href(
+    l1_ls8_folder_md_expected: Dict,
+):
+    """
+    Validator should support products without any measurements in the document.
+
+    These are valid for products which can't be dc.load()'ed but are
+    referred to for provenance, such as DEA's telemetry data or DEA's collection-2
+    Level 1 products.
+    """
+    del l1_ls8_folder_md_expected["product"]["href"]
+    msgs = MessageCatcher(validate_dataset(l1_ls8_folder_md_expected))
+    assert not msgs.errors()
+    assert "product_href" in msgs.info_text()
 
 
 def _measurement(product: Dict, name: str):
