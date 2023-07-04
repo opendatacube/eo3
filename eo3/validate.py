@@ -246,6 +246,7 @@ def validate_dataset(
     try:
         dataset = serialise.from_doc(doc, skip_validation=True)
     except ClassValidationError as e:
+
         def expand(err: ClassValidationError) -> str:
             expanded = err.message
             try:
@@ -254,9 +255,8 @@ def validate_dataset(
             except AttributeError:
                 pass
             return expanded
-        yield msg.error(
-            "serialisation_failure", f"Serialisation failed: {expand(e)}"
-        )
+
+        yield msg.error("serialisation_failure", f"Serialisation failed: {expand(e)}")
         return
 
     # non-schema basic validation
@@ -403,7 +403,7 @@ def _validate_lineage(lineage, msg):
             except ValueError:
                 yield msg.error(
                     "invalid_source_id",
-                    f"Lineage id in {label} is not a valid UUID {parent_id}"
+                    f"Lineage id in {label} is not a valid UUID {parent_id}",
                 )
 
 

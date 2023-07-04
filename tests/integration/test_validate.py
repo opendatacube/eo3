@@ -48,7 +48,8 @@ def test_valid_document_works(example_metadata: Dict):
 def test_bad_crs(example_metadata: Dict):
     example_metadata["crs"] = 4326
     msgs = MessageCatcher(validate_dataset(example_metadata))
-    assert 'epsg codes should be prefixed' in msgs.error_text()
+    assert "epsg codes should be prefixed" in msgs.error_text()
+
 
 def test_missing_field(example_metadata: Dict):
     """when a required field (id) is missing, validation should fail"""
@@ -106,7 +107,9 @@ def test_missing_grid_def(example_metadata: Dict):
 def test_absolute_path_in_measurement(example_metadata: Dict):
     """A Measurement refers to a grid that doesn't exist"""
     a_measurement, *_ = list(example_metadata["measurements"])
-    example_metadata["measurements"][a_measurement]["path"] = "file:///this/is/an/utter/absolute/path.nc"
+    example_metadata["measurements"][a_measurement][
+        "path"
+    ] = "file:///this/is/an/utter/absolute/path.nc"
     msgs = MessageCatcher(validate_dataset(example_metadata))
     warns = msgs.warning_text()
     assert "absolute_path" in warns
@@ -136,12 +139,14 @@ def test_path_with_part_in_measurement(example_metadata: Dict):
 
 
 def test_absolute_path_in_accessory(example_metadata: Dict):
-        an_accessory, *_ = list(example_metadata["accessories"])
-        example_metadata["accessories"][an_accessory]["path"] = "file:///this/is/an/utter/absolute/path.nc"
-        msgs = MessageCatcher(validate_dataset(example_metadata))
-        warns = msgs.warning_text()
-        assert "absolute_path" in warns
-        assert an_accessory in warns
+    an_accessory, *_ = list(example_metadata["accessories"])
+    example_metadata["accessories"][an_accessory][
+        "path"
+    ] = "file:///this/is/an/utter/absolute/path.nc"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    warns = msgs.warning_text()
+    assert "absolute_path" in warns
+    assert an_accessory in warns
 
 
 def test_invalid_shape(example_metadata: Dict):
@@ -211,11 +216,7 @@ def test_flat_lineage(example_metadata: Dict):
 
 def test_nonflat_lineage(example_metadata: Dict):
     example_metadata["lineage"] = {
-        "spam": [
-            str(uuid4()),
-            str(uuid4()),
-            str(uuid4())
-        ],
+        "spam": [str(uuid4()), str(uuid4()), str(uuid4())],
     }
     msgs = MessageCatcher(validate_dataset(example_metadata))
     assert not msgs.error_text()
@@ -227,11 +228,7 @@ def test_non_uuids_in_lineage(example_metadata: Dict):
     example_metadata["lineage"] = {
         "spam": [str(uuid4())],
         "eggs": [str(uuid4()), "scrambled"],
-        "beans": [
-            str(uuid4()),
-            str(uuid4()),
-            str(uuid4())
-        ],
+        "beans": [str(uuid4()), str(uuid4()), str(uuid4())],
     }
     msgs = MessageCatcher(validate_dataset(example_metadata))
     errs = msgs.error_text()
@@ -306,7 +303,7 @@ def test_complains_about_product_not_matching(
 
 
 def test_complains_when_no_product(
-        l1_ls8_folder_md_expected: Dict,
+    l1_ls8_folder_md_expected: Dict,
 ):
     """When a product is specified, it will validate that the measurements match the product"""
     # Thorough checking should fail when there's no product provided
