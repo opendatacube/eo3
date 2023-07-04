@@ -1,6 +1,7 @@
 from pathlib import Path
 from textwrap import dedent
 from typing import Dict, Union
+from uuid import uuid4
 
 import numpy as np
 import pytest
@@ -43,6 +44,11 @@ def test_valid_document_works(example_metadata: Dict):
     msgs = MessageCatcher(validate_dataset(example_metadata))
     assert not msgs.errors()
 
+
+def test_bad_crs(example_metadata: Dict):
+    example_metadata["crs"] = 4326
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert 'epsg codes should be prefixed' in msgs.error_text()
 
 def test_missing_field(example_metadata: Dict):
     """when a required field (id) is missing, validation should fail"""
@@ -97,6 +103,47 @@ def test_missing_grid_def(example_metadata: Dict):
     assert "invalid_grid_ref" in msgs.error_text()
 
 
+def test_absolute_path_in_measurement(example_metadata: Dict):
+    """A Measurement refers to a grid that doesn't exist"""
+    a_measurement, *_ = list(example_metadata["measurements"])
+    example_metadata["measurements"][a_measurement]["path"] = "file:///this/is/an/utter/absolute/path.nc"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    warns = msgs.warning_text()
+    assert "absolute_path" in warns
+    assert a_measurement in warns
+
+
+def test_path_with_part_in_measurement(example_metadata: Dict):
+    """A Measurement refers to a grid that doesn't exist"""
+    a_measurement, *_ = list(example_metadata["measurements"])
+    example_metadata["measurements"][a_measurement]["path"] += "#part=0"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "uri_part" in msgs.warning_text()
+
+    example_metadata["measurements"][a_measurement]["path"] += "#part=nir"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "uri_part" in msgs.warning_text()
+    errs = msgs.error_text()
+    assert "uri_invalid_part" in errs
+    assert "nir" in errs
+
+    example_metadata["measurements"][a_measurement]["path"] += "#part=-22"
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert "uri_part" in msgs.warning_text()
+    errs = msgs.error_text()
+    assert "uri_invalid_part" in errs
+    assert "-22" in errs
+
+
+def test_absolute_path_in_accessory(example_metadata: Dict):
+        an_accessory, *_ = list(example_metadata["accessories"])
+        example_metadata["accessories"][an_accessory]["path"] = "file:///this/is/an/utter/absolute/path.nc"
+        msgs = MessageCatcher(validate_dataset(example_metadata))
+        warns = msgs.warning_text()
+        assert "absolute_path" in warns
+        assert an_accessory in warns
+
+
 def test_invalid_shape(example_metadata: Dict):
     """the geometry must be a valid shape"""
 
@@ -148,6 +195,49 @@ def test_crs_as_wkt(example_metadata: Dict):
     assert not msgs.errors()
     assert "non_epsg" in msgs.warning_text()
     assert "change CRS to 'epsg:32655'" in msgs.warning_text()
+
+
+def test_flat_lineage(example_metadata: Dict):
+    example_metadata["lineage"] = {
+        "spam": [str(uuid4())],
+        "bacon": [str(uuid4())],
+        "eggs": [str(uuid4())],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+    assert "nonflat_lineage" not in msgs.info_text()
+
+
+def test_nonflat_lineage(example_metadata: Dict):
+    example_metadata["lineage"] = {
+        "spam": [
+            str(uuid4()),
+            str(uuid4()),
+            str(uuid4())
+        ],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+    assert "nonflat_lineage" in msgs.info_text()
+
+
+def test_non_uuids_in_lineage(example_metadata: Dict):
+    example_metadata["lineage"] = {
+        "spam": [str(uuid4())],
+        "eggs": [str(uuid4()), "scrambled"],
+        "beans": [
+            str(uuid4()),
+            str(uuid4()),
+            str(uuid4())
+        ],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    errs = msgs.error_text()
+    assert "invalid_source_id" in errs
+    assert "scrambled" in errs
+    assert "eggs" in errs
 
 
 def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) -> Path:
@@ -216,7 +306,7 @@ def test_complains_about_product_not_matching(
 
 
 def test_complains_when_no_product(
-    l1_ls8_folder_md_expected: Dict,
+        l1_ls8_folder_md_expected: Dict,
 ):
     """When a product is specified, it will validate that the measurements match the product"""
     # Thorough checking should fail when there's no product provided

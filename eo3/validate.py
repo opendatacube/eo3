@@ -28,6 +28,7 @@ import rasterio
 import toolz
 from attr import Factory, define, field, frozen
 from boltons.iterutils import get_path
+from cattrs import ClassValidationError
 from click import echo
 from rasterio import DatasetReader
 from rasterio.crs import CRS
@@ -235,8 +236,28 @@ def validate_dataset(
     if msg.errors:
         return
 
+    # Validate Lineage before serialisation for clearer error reporting. (Get incomprehensible error messages
+    #   for invalid UUIDs)
+    yield from _validate_lineage(doc.get("lineage", {}), msg)
+    if msg.errors:
+        return
+
     # TODO: How to make this step more extensible?
-    dataset = serialise.from_doc(doc, skip_validation=True)
+    try:
+        dataset = serialise.from_doc(doc, skip_validation=True)
+    except ClassValidationError as e:
+        def expand(err: ClassValidationError) -> str:
+            expanded = err.message
+            try:
+                for sub_err in err.exceptions:
+                    expanded += expand(sub_err)
+            except AttributeError:
+                pass
+            return expanded
+        yield msg.error(
+            "serialisation_failure", f"Serialisation failed: {expand(e)}"
+        )
+        return
 
     # non-schema basic validation
     if not dataset.product.href:
@@ -265,11 +286,8 @@ def validate_dataset(
     yield from dataset.properties.validate_eo3_properties(msg)
 
     # Accessories
-    for accessory in dataset.accessories.values():
-        yield from _validate_accessory(accessory, msg)
-
-    # Lineage
-    yield from _validate_lineage(dataset.lineage, msg)
+    for acc_name, accessory in dataset.accessories.items():
+        yield from _validate_accessory(acc_name, accessory, msg)
 
     required_measurements: Dict[str, ExpectedMeasurement] = {}
 
@@ -321,7 +339,7 @@ def _validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMess
 
         hint = None
         if displayable_path == "crs" and "not of type" in error.message:
-            hint = "epsg codes should be prefixed with 'epsg:1234'"
+            hint = "epsg codes should be prefixed with 'epsg', e.g. 'epsg:1234'"
 
         context = f"({displayable_path}) " if displayable_path else ""
         yield msg.error("structure", f"{context}{error.message} ", hint=hint)
@@ -362,11 +380,12 @@ def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
             )
 
 
-def _validate_accessory(accessory: AccessoryDoc, msg: ContextualMessager):
+def _validate_accessory(name: str, accessory: AccessoryDoc, msg: ContextualMessager):
+    accessory.name = name
     if is_absolute(accessory.path):
         yield msg.warning(
             "absolute_path",
-            f"measurement {accessory.name!r} has an absolute path: {accessory.path!r}",
+            f"Accessory {accessory.name!r} has an absolute path: {accessory.path!r}",
         )
 
 
@@ -383,7 +402,8 @@ def _validate_lineage(lineage, msg):
                 UUID(parent_id)
             except ValueError:
                 yield msg.error(
-                    "invalid_sourcce_id", f"Lineage id {parent_id} is not a valid UUID"
+                    "invalid_source_id",
+                    f"Lineage id in {label} is not a valid UUID {parent_id}"
                 )
 
 
