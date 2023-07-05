@@ -130,11 +130,11 @@ A search field with a scalar types must have an offset (and may not have a min_o
 
 A search field with a range types must have a min_offset and max_offset (and may not have an offset).
 
-An offset is a sequence of one or more sequences of strings and describes where the value for that 
-search field can be found in a Dataset document.  Range type search fields have two offsets: one for 
+An offset is a sequence of one or more sequences of strings and describes where the value for that
+search field can be found in a Dataset document.  Range type search fields have two offsets: one for
 the lower limit of the range and one for the upper limit of the range.
 
-Each sequence of strings in an offset represents the keys to finding the search field in the 
+Each sequence of strings in an offset represents the keys to finding the search field in the
 dataset metadata document. If multiple such sequences is specified, they checked in order, falling
 back to the second set of keys if the first does not exist in the dataset document, and so on.
 
