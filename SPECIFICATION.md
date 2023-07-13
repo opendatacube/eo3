@@ -20,7 +20,7 @@ below:
 - location (optional)
 - locations (optional)
 - crs (required)
-- geometry (??)
+- geometry (optional)
 - grids (required)
 - properties (required)
 - measurements (required)
@@ -108,8 +108,8 @@ fall outside the geometry are invalid.
 The geometry is used when performing dataset searches.  If there is valid data in the dataset outside
 of the specified geometry, the dataset may not be returned when explicitly searching for that data.
 
-The geometry may be approximate.  The geometry is optional.  If omitted, all data within the grids is assumed
-to be valid.
+The geometry may be approximate.  The geometry is optional.  If omitted,  the index driver assumes
+in searches that all data within the grids is valid.
 
 The format expected is equivalent to a GeoJSON geometry primitive, e.g.:
 
@@ -311,6 +311,12 @@ lineage:
   ard4:
   - d5c99c8e-7ce1-4627-bb4d-4a1abbfebc1a
 ```
+
+
+##### Possible future extension - recursive lineage representation
+
+A future extension may allow specifying more than one level of lineage (e.g. grandparent datasets as well as parent
+datasets).
 
 ### Elements derived and inserted on indexing
 

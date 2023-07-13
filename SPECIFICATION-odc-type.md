@@ -1,8 +1,9 @@
 # Metadata Type Documents
 
-Historically metadata type documents supported ...
+Historically metadata type documents supported fairly unrestricted metadata mapping schemes
 
-For EO3 documents, their function is limited to ...
+For EO3 documents, their function is limited to defining custom search fields that the active index
+driver maintains optimised search indexes for.
 
 ### Format
 
@@ -75,9 +76,9 @@ With support for non-EO3-compatible metadata types being dropped in datacube-2.0
 types will also be vanish.
 
 New structures may be introduced at a later date to support EO3-compliant non-geospatial metadata types
-(e.g. EO3 telemetry).
+(e.g. EO3 telemetry or for non-raster geospatial data).
 
-Note that EO3-compliant non-geospatial metadata types may not be supported by all index drivers.
+Any such future extension will be optional and may not be supported by all index drivers.
 
 #### Search Fields
 
@@ -129,9 +130,13 @@ A search field with a scalar types must have an offset (and may not have a min_o
 
 A search field with a range types must have a min_offset and max_offset (and may not have an offset).
 
-An offset is a sequence of strings and describes where the value for that search field can be found in
-a Dataset document.  Range type search fields have two offsets: one for the lower limit of the range and
-one for the upper limit of the range.
+An offset is a sequence of one or more sequences of strings and describes where the value for that
+search field can be found in a Dataset document.  Range type search fields have two offsets: one for
+the lower limit of the range and one for the upper limit of the range.
+
+Each sequence of strings in an offset represents the keys to finding the search field in the
+dataset metadata document. If multiple such sequences is specified, they checked in order, falling
+back to the second set of keys if the first does not exist in the dataset document, and so on.
 
 For EO3 compatibility the following restrictions apply to offsets:
 
@@ -169,7 +174,7 @@ For EO3 compatibility the "lat" and "lon" search fields MUST have the following 
         - [extent, lat, end]
 ```
 
-"lat" and "lon" may be deprecated and removed in future releases.
+"lat" and "lon" will be deprecated in v1.9 and removed in v2.
 
 **2. time**
 
