@@ -3,18 +3,16 @@ Module
 """
 
 
-from affine import Affine
 import pytest
-from odc.geo.geom import polygon, CRS
+from affine import Affine
+from odc.geo.geom import CRS, polygon
+
 from eo3.model import GridDoc
 
 
 @pytest.fixture
 def basic_grid():
-    return GridDoc(
-        shape=(100, 100),
-        transform=Affine(0, 100, 50, 100, 0, 50)
-    )
+    return GridDoc(shape=(100, 100), transform=Affine(0, 100, 50, 100, 0, 50))
 
 
 def test_grid_ref_points(basic_grid):
@@ -46,7 +44,7 @@ def test_polygon(basic_grid):
             (10050, 50),
             (50, 50),
         ],
-        crs=None
+        crs=None,
     )
 
 
@@ -61,7 +59,7 @@ def test_grid_crs(basic_grid):
             (10050, 50),
             (50, 50),
         ],
-        crs=crs
+        crs=crs,
     )
     basic_grid.crs = crs
     poly = basic_grid.polygon()
@@ -73,6 +71,5 @@ def test_grid_crs(basic_grid):
             (10050, 50),
             (50, 50),
         ],
-        crs=crs
+        crs=crs,
     )
-
