@@ -258,8 +258,5 @@ class MessageCatcher:
     def text_for_level(self, lvl: Level):
         txt = ""
         for msg in self._msgs[lvl]:
-            if msg.hint:
-                txt += f"{msg.code}:{msg.reason} ({msg.hint})\n"
-            else:
-                txt += f"{msg.code}:{msg.reason}\n"
+            txt += str(msg)
         return txt

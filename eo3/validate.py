@@ -199,7 +199,8 @@ class ValidationExpectations:
 def validate_dataset(
     doc: Dict,
     product_definition: Optional[Dict] = None,
-    metadata_type_definition: Optional[Dict] = None,
+    product_definitions: Optional[Dict] = None,
+    metadata_type_definition: Optional[Mapping[str, Dict]] = None,
     thorough: bool = False,
     readable_location: Union[str, Path] = None,
     expect: ValidationExpectations = None,
@@ -224,13 +225,23 @@ def validate_dataset(
     if product_definition is not None:
         expect = expect.with_document_overrides(product_definition)
         validation_context["product"] = product_definition["name"]
+    elif product_definitions is not None:
+        product_name = doc.get("product", {}).get("name")
+        if product_name and product_name in product_definitions:
+            product_definition = product_definitions[product_name]
+            expect = expect.with_document_overrides(product_definition)
+            validation_context["product"] = product_name
+
     msg = ContextualMessager(validation_context)
+
+    if expect.allow_extra_measurements:
+        yield msg.warning("extra_measurements", "Extra measurements are deprecated")
+
     if thorough and not product_definition:
         yield msg.error(
             "no_product", "Must supply product definition for thorough validation"
         )
-    if expect.allow_extra_measurements:
-        yield msg.warning("extra_measurements", "Extra measurements are deprecated")
+
     # Validate against schema and deserialise to a (base eo3) dataset doc
     yield from _validate_ds_to_schema(doc, msg)
     if msg.errors:
@@ -246,7 +257,6 @@ def validate_dataset(
     try:
         dataset = serialise.from_doc(doc, skip_validation=True)
     except ClassValidationError as e:
-
         def expand(err: ClassValidationError) -> str:
             expanded = err.message
             try:
@@ -423,15 +433,25 @@ def _validate_ds_to_product(
             )
         }
     )
-
     product_name = product_definition.get("name")
-    if product_name != dataset.product.name:
-        # This is only informational as it's possible products may be indexed with finer-grained
-        # categories than the original datasets: eg. a separate "nrt" product, or test product.
-        yield msg.info(
+    if product_name and product_name != dataset.product.name:
+        yield msg.error(
             "product_mismatch",
             f"Dataset product name {dataset.product.name!r} "
             f"does not match the given product ({product_name!r}",
+        )
+
+    ds_props = dict(dataset.properties)
+    prod_props = product_definition["metadata"].get("properties", {})
+    if not contains(ds_props, prod_props):
+        diffs = tuple(
+            _get_printable_differences(ds_props, prod_props)
+        )
+        difference_hint = _differences_as_hint(diffs)
+        yield msg.error(
+            "metadata_mismatch",
+            "Dataset template does not match product document template.",
+            hint=difference_hint
         )
 
     for name in required_measurements:
@@ -781,20 +801,7 @@ def validate_eo3_doc(
 ) -> List[ValidationMessage]:
     messages = []
 
-    # TODO: follow ODC's match rules?
-
     matched_product = None
-
-    if products:
-        matched_product, messages = _match_product(doc, products)
-    else:
-        messages.append(
-            ValidationMessage(
-                Level.error if thorough else Level.info,
-                "no_product",
-                "No product provided: validating dataset information alone",
-            )
-        )
 
     metadata_type = None
     if metadata_types and matched_product:
@@ -811,7 +818,7 @@ def validate_eo3_doc(
     messages.extend(
         validate_dataset(
             doc,
-            product_definition=matched_product,
+            product_definitions=products,
             readable_location=location,
             thorough=thorough,
             metadata_type_definition=metadata_types.get(metadata_type),
@@ -841,93 +848,6 @@ def _get_product_mismatch_reasons(dataset_doc: Dict, product_definition: Dict):
     Gives human-readable lines of text.
     """
     yield from _get_printable_differences(dataset_doc, product_definition["metadata"])
-
-
-def _match_product(
-    dataset_doc: Dict, product_definitions: Dict[str, Dict]
-) -> Tuple[Optional[Dict], List[ValidationMessage]]:
-    """Match the given dataset to a product definition"""
-
-    product = None
-
-    # EO3 datasets often put the product name directly inside.
-    specified_product_name = get_path(dataset_doc, ("product", "name"), default=None)
-    specified_product_name = specified_product_name or get_path(
-        dataset_doc, ("properties", "odc:product"), default=None
-    )
-
-    if specified_product_name and (specified_product_name in product_definitions):
-        product = product_definitions[specified_product_name]
-
-    matching_products = {
-        name: definition
-        for name, definition in product_definitions.items()
-        if contains(dataset_doc, definition["metadata"])
-    }
-
-    # We we have nothing, give up!
-    if (not matching_products) and (not product):
-        # Find the product that most closely matches it, to helpfully show the differences!
-        closest_product_name = None
-        closest_differences = None
-        for name, definition in product_definitions.items():
-            diffs = tuple(_get_product_mismatch_reasons(dataset_doc, definition))
-            if (closest_differences is None) or len(diffs) < len(closest_differences):
-                closest_product_name = name
-                closest_differences = diffs
-
-        difference_hint = _differences_as_hint(closest_differences)
-        return None, [
-            ValidationMessage.error(
-                "unknown_product",
-                "Dataset does not match the given products",
-                hint=f"Closest match is {closest_product_name}, with differences:"
-                f"\n{difference_hint}",
-            )
-        ]
-
-    messages = []
-
-    if specified_product_name not in matching_products:
-        if product:
-            difference_hint = _differences_as_hint(
-                _get_product_mismatch_reasons(dataset_doc, product)
-            )
-            messages.append(
-                ValidationMessage.info(
-                    "strange_product_claim",
-                    f"Dataset claims to be product {specified_product_name!r}, but doesn't match its fields",
-                    hint=f"{difference_hint}",
-                )
-            )
-        else:
-            messages.append(
-                ValidationMessage.info(
-                    "unknown_product_claim",
-                    f"Dataset claims to be product {specified_product_name!r}, but it wasn't supplied.",
-                )
-            )
-
-    if len(matching_products) > 1:
-        matching_names = ", ".join(matching_products.keys())
-        messages.append(
-            ValidationMessage.error(
-                "product_match_clash",
-                "Multiple products match the given dataset",
-                hint=f"Maybe you need more fields in the 'metadata' section?\n"
-                f"Claims to be a {specified_product_name!r}, and matches {matching_names!r}"
-                if specified_product_name
-                else f"Maybe you need more fields in the 'metadata' section?\n"
-                f"Matches {matching_names!r}",
-            )
-        )
-        # (We wont pick one from the bunch here. Maybe they already matched one above to use in continuing validation.)
-
-    # Just like ODC, match rules will rule all. Even if their metadata has a "product_name" field.
-    if len(matching_products) == 1:
-        [product] = matching_products.values()
-
-    return product, messages
 
 
 def _differences_as_hint(product_diffs):
@@ -1016,43 +936,58 @@ def _validate_geo(
         )
         return
 
-    # Grids is validated by schema - but is required
-    if not dataset.grids:
-        yield msg.error("incomplete_grids", "Dataset has some geo fields but no grids")
-
     # CRS required
     if not dataset.crs:
         yield msg.error("incomplete_crs", "Dataset has some geo fields but no crs")
     else:
         # We only officially support epsg code (recommended) or wkt.
         # TODO Anything supported by odc-geo
-        if dataset.crs.lower().startswith("epsg:"):
-            try:
-                CRS.from_string(dataset.crs)
-            except CRSError as e:
-                yield msg.error("invalid_crs_epsg", e.args[0])
+        yield from _validate_crs(dataset.crs, msg)
 
-            if dataset.crs.lower() != dataset.crs:
-                yield msg.warning(
-                    "mixed_crs_case", "Recommend lowercase 'epsg:' prefix"
-                )
-        else:
-            wkt_crs = None
-            try:
-                wkt_crs = CRS.from_wkt(dataset.crs)
-            except CRSError as e:
-                yield msg.error(
-                    "invalid_crs",
-                    f"Expect either an epsg code or a WKT string: {e.args[0]}",
-                )
+    # Grids is validated by schema - but is required
+    if not dataset.grids:
+        yield msg.error("incomplete_grids", "Dataset has some geo fields but no grids")
+    else:
+        yield from _validate_grids(dataset.grids, dataset.crs, msg)
 
-            if wkt_crs and wkt_crs.is_epsg_code:
-                yield msg.warning(
-                    "non_epsg",
-                    f"Prefer an EPSG code to a WKT when possible. (Can change CRS to 'epsg:{wkt_crs.to_epsg()}')",
-                )
     return
 
+
+def _validate_crs(crs, msg):
+    if crs.lower().startswith("epsg:"):
+        try:
+            CRS.from_string(crs)
+        except CRSError as e:
+            yield msg.error("invalid_crs_epsg", e.args[0])
+
+        if crs.lower() != crs:
+            yield msg.warning(
+                "mixed_crs_case", "Recommend lowercase 'epsg:' prefix"
+            )
+    else:
+        wkt_crs = None
+        try:
+            wkt_crs = CRS.from_wkt(crs)
+        except CRSError as e:
+            yield msg.error(
+                "invalid_crs",
+                f"Expect either an epsg code or a WKT string: {e.args[0]}",
+            )
+
+        if wkt_crs and wkt_crs.is_epsg_code:
+            yield msg.warning(
+                "non_epsg",
+                f"Prefer an EPSG code to a WKT when possible. (Can change CRS to 'epsg:{wkt_crs.to_epsg()}')",
+            )
+
+
+def _validate_grids(grids, default_crs, msg):
+    for grid_name, grid_def in grids.items():
+        sub_msg = msg.sub_msg(grid=grid_name)
+        if not grid_def.crs:
+            grid_def.crs = default_crs
+        else:
+            yield from _validate_crs(grid_def.crs, sub_msg)
 
 def _has_some_geo(dataset: Eo3DatasetDocBase) -> bool:
     return dataset.geometry is not None or dataset.grids or dataset.crs
