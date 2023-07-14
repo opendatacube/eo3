@@ -4,7 +4,6 @@ from typing import Dict, Union
 from uuid import uuid4
 
 import numpy as np
-import pytest
 import rasterio
 from rasterio.io import DatasetWriter
 
@@ -111,9 +110,9 @@ def test_grid_custom_crs(example_metadata: Dict):
 def test_grid_custom_bad_crs(example_metadata: Dict):
     """A Measurement refers to a grid that doesn't exist"""
     example_metadata["grids"]["other_crs"] = {
-      "crs": "splunge:32756",
-      "shape": [2267, 1567],
-      "transform": [50.0, 0.0, 257975.0, 0.0, -50.0, 6290325.0],
+        "crs": "splunge:32756",
+        "shape": [2267, 1567],
+        "transform": [50.0, 0.0, 257975.0, 0.0, -50.0, 6290325.0],
     }
     msgs = MessageCatcher(validate_dataset(example_metadata))
     errs = msgs.error_text()
@@ -264,7 +263,7 @@ def test_non_uuids_in_lineage(example_metadata: Dict):
 
 def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) -> Path:
     """When a product is specified, it will validate that the measurements match the product"""
-    product["name"] =  l1_ls8_folder_md_expected["product"]["name"]
+    product["name"] = l1_ls8_folder_md_expected["product"]["name"]
     # Document is valid on its own.
     msgs = MessageCatcher(validate_dataset(l1_ls8_folder_md_expected))
     assert not msgs.errors()

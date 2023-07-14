@@ -4,7 +4,7 @@ from uuid import UUID
 
 import affine
 import attr
-from odc.geo import CoordList, SomeCRS, Geometry
+from odc.geo import CoordList, Geometry, SomeCRS
 from odc.geo.geom import polygon
 from ruamel.yaml.comments import CommentedMap
 from shapely.geometry.base import BaseGeometry
@@ -41,7 +41,7 @@ class GridDoc:
     transform: affine.Affine
     crs: Optional[str] = None
 
-    def points(self, ring: bool=False) -> CoordList:
+    def points(self, ring: bool = False) -> CoordList:
         ny, nx = (float(dim) for dim in self.shape)
         pts = [(0.0, 0.0), (nx, 0.0), (nx, ny), (0.0, ny)]
         if ring:
@@ -56,7 +56,6 @@ class GridDoc:
         if not crs:
             crs = self.crs
         return polygon(self.points(ring=True), crs=crs)
-
 
 
 @attr.s(auto_attribs=True, slots=True)

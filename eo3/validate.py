@@ -27,7 +27,6 @@ import ciso8601
 import rasterio
 import toolz
 from attr import Factory, define, field, frozen
-from boltons.iterutils import get_path
 from cattrs import ClassValidationError
 from click import echo
 from rasterio import DatasetReader
@@ -257,6 +256,7 @@ def validate_dataset(
     try:
         dataset = serialise.from_doc(doc, skip_validation=True)
     except ClassValidationError as e:
+
         def expand(err: ClassValidationError) -> str:
             expanded = err.message
             try:
@@ -444,14 +444,12 @@ def _validate_ds_to_product(
     ds_props = dict(dataset.properties)
     prod_props = product_definition["metadata"].get("properties", {})
     if not contains(ds_props, prod_props):
-        diffs = tuple(
-            _get_printable_differences(ds_props, prod_props)
-        )
+        diffs = tuple(_get_printable_differences(ds_props, prod_props))
         difference_hint = _differences_as_hint(diffs)
         yield msg.error(
             "metadata_mismatch",
             "Dataset template does not match product document template.",
-            hint=difference_hint
+            hint=difference_hint,
         )
 
     for name in required_measurements:
@@ -961,9 +959,7 @@ def _validate_crs(crs, msg):
             yield msg.error("invalid_crs_epsg", e.args[0])
 
         if crs.lower() != crs:
-            yield msg.warning(
-                "mixed_crs_case", "Recommend lowercase 'epsg:' prefix"
-            )
+            yield msg.warning("mixed_crs_case", "Recommend lowercase 'epsg:' prefix")
     else:
         wkt_crs = None
         try:
@@ -988,6 +984,7 @@ def _validate_grids(grids, default_crs, msg):
             grid_def.crs = default_crs
         else:
             yield from _validate_crs(grid_def.crs, sub_msg)
+
 
 def _has_some_geo(dataset: Eo3DatasetDocBase) -> bool:
     return dataset.geometry is not None or dataset.grids or dataset.crs

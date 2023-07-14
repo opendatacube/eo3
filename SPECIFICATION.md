@@ -132,7 +132,7 @@ and may contain additional alternate grid definitions. Each grid definition is e
 `odc-geo` `GeoBox` for the entire dataset. Each measurement in the dataset must have a grid, but multiple
 measurements can share the same grid.
 
-A grid definition represents the native geobox for the whole dataset for at least one measurement belonging to the dataset.  
+A grid definition represents the native geobox for the whole dataset for at least one measurement belonging to the dataset.
 Each grid definition must have a `shape` and a `transform` and may have a `crs`. `shape` is an array of two integers,
 and represents the width and height of the grid in pixels.  `transform` is an array of either 6 or
 9 floating point numbers and represents an affine transform for converting pixel coordinates to
@@ -140,7 +140,7 @@ coordinates in the specified `crs`, or the dataset `crs` described above if no g
 The CRS may be a valid EPSG code or WKT string.
 If the 9-number form is used for the transform, the last three numbers must be [0, 0, 1].
 
-Note: Grid-specific CRSes are new in ODC 1.9.x.  In ODC 1.8.x, grids cannot define their own CRS and always 
+Note: Grid-specific CRSes are new in ODC 1.9.x.  In ODC 1.8.x, grids cannot define their own CRS and always
 use the dataset CRS. This extension has been added for STAC interoperability.
 
 E.g.
@@ -159,7 +159,7 @@ E.g.
       transform: [15.0, 0.0, 557392.5, 0.0, -15.0, -4030492.5]
     custom_crs:
       # This grid uses a different CRS
-      crs: epsg:32756  
+      crs: epsg:32756
       shape: [2267, 1567]
       transform: [50.0, 0.0, 257975.0, 0.0, -50.0, 6290325.0]
 
