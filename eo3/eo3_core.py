@@ -19,6 +19,7 @@ from odc.geo.geom import (
 EO3_SCHEMA = "https://schemas.opendatacube.org/dataset"
 
 
+# This is should become eo3.models.GridDoc
 class EO3Grid:
     def __init__(self, grid: Dict[str, Any]) -> None:
         shape = grid.get("shape")

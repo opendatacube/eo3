@@ -4,7 +4,6 @@ from typing import Dict, Union
 from uuid import uuid4
 
 import numpy as np
-import pytest
 import rasterio
 from rasterio.io import DatasetWriter
 
@@ -94,6 +93,31 @@ def test_missing_geo_fields(example_metadata: Dict):
     expect = ValidationExpectations(require_geometry=False)
     msgs = MessageCatcher(validate_dataset(example_metadata, expect=expect))
     assert "incomplete_crs" in msgs.error_text()
+
+
+def test_grid_custom_crs(example_metadata: Dict):
+    """A Measurement refers to a grid that doesn't exist"""
+    example_metadata["grids"]["other_crs"] = {
+        "crs": "epsg:32756",
+        "shape": [2267, 1567],
+        "transform": [50.0, 0.0, 257975.0, 0.0, -50.0, 6290325.0],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    assert not msgs.error_text()
+    assert not msgs.warning_text()
+
+
+def test_grid_custom_bad_crs(example_metadata: Dict):
+    """A Measurement refers to a grid that doesn't exist"""
+    example_metadata["grids"]["other_crs"] = {
+        "crs": "splunge:32756",
+        "shape": [2267, 1567],
+        "transform": [50.0, 0.0, 257975.0, 0.0, -50.0, 6290325.0],
+    }
+    msgs = MessageCatcher(validate_dataset(example_metadata))
+    errs = msgs.error_text()
+    assert "invalid_crs" in errs
+    assert "other_crs" in errs
 
 
 def test_missing_grid_def(example_metadata: Dict):
@@ -239,7 +263,7 @@ def test_non_uuids_in_lineage(example_metadata: Dict):
 
 def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) -> Path:
     """When a product is specified, it will validate that the measurements match the product"""
-
+    product["name"] = l1_ls8_folder_md_expected["product"]["name"]
     # Document is valid on its own.
     msgs = MessageCatcher(validate_dataset(l1_ls8_folder_md_expected))
     assert not msgs.errors()
@@ -284,7 +308,7 @@ def test_valid_with_product_doc(l1_ls8_folder_md_expected: Dict, product: Dict) 
     assert not msgs.errors()
 
 
-@pytest.mark.skip("This check is outside the current callpath.")
+# @pytest.mark.skip("This check is outside the current callpath.")
 def test_complains_about_product_not_matching(
     l1_ls8_folder_md_expected: Dict,
     eo3_product,
@@ -294,12 +318,12 @@ def test_complains_about_product_not_matching(
     """
 
     # A metadata field that's not in the dataset.
-    eo3_product["metadata"]["favourite_sandwich"] = "spam"
+    eo3_product["metadata"]["properties"]["favourite_sandwich"] = "spam"
 
     msgs = MessageCatcher(
         validate_dataset(l1_ls8_folder_md_expected, product_definition=eo3_product)
     )
-    assert "unknown_product" in msgs.error_text()
+    assert "metadata_mismatch" in msgs.error_text()
 
 
 def test_complains_when_no_product(

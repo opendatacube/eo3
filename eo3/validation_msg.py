@@ -23,7 +23,11 @@ class ValidationMessage:
         hint = ""
         if self.hint:
             hint = f" (Hint: {self.hint})"
-        return f"{self.code}: {self.reason}{hint}"
+        if self.context:
+            context_str = ",".join(f"{k}: {v}" for k, v in self.context.items())
+            return f"{self.code} in [{context_str}]: {self.reason}{hint}"
+        else:
+            return f"{self.code}: {self.reason}{hint}"
 
     @classmethod
     def info(
@@ -63,3 +67,8 @@ class ContextualMessager:
     def error(self, code: str, reason: str, hint: str = None):
         self.errors += 1
         return ValidationMessage.error(code, reason, hint=hint, context=self.context)
+
+    def sub_msg(self, **kwargs: str) -> "ContextualMessager":
+        sub_context = self.context.copy()
+        sub_context.update(**kwargs)
+        return self.__class__(sub_context)

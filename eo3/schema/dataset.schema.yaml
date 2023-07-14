@@ -35,8 +35,7 @@ properties:
       type: string
 
   crs:
-    # Either an epsg code ('epsg:1234') (preferred!)
-    # or a WKT string if no EPSG is possible.
+    # Either an epsg code ('epsg:1234') (preferred!) or a WKT string if no EPSG is possible.
     type: string
 
   # TODO: more thorough geometry check?
@@ -59,6 +58,10 @@ properties:
             type: number
           minItems: 6
           maxItems: 9
+        crs:
+          # Optional - defaults to dataset crs, described abobe.
+          # Either an epsg code ('epsg:1234') (preferred!) or a WKT string if no EPSG is possible.
+          type: string
       required:
         - shape
         - transform
