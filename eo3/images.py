@@ -11,6 +11,7 @@ from typing import (
     Generator,
     Iterable,
     List,
+    Mapping,
     Optional,
     Sequence,
     Set,
@@ -433,9 +434,9 @@ class MeasurementBundler:
             # Validate assumption: All grids should have same CRS
             if crs is None:
                 crs = grid.crs
-            # TODO: CRS equality is tricky. This may not work.
-            #       We're assuming a group of measurements specify their CRS
-            #       the same way if they are the same.
+            # CRS equality is tricky. This may not work.
+            # We're assuming a group of measurements specify their CRS
+            # the same way if they are the same.
             elif grid.crs != crs:
                 raise ValueError(
                     f"Measurements have different CRSes in the same dataset:\n"
@@ -628,6 +629,7 @@ class FileWrite:
         nodata: int = None,
         overview_resampling=Resampling.nearest,
         overviews: Optional[Tuple[int, ...]] = DEFAULT_OVERVIEWS,
+        tags: Optional[Mapping[str, str]] = None,
     ) -> WriteResult:
         """
         Writes a 2D/3D image to disk using rasterio.
@@ -649,6 +651,9 @@ class FileWrite:
             from `rasterio.enums.Resampling`
             Default is `Resampling.nearest`.
 
+        :param tags:
+            File tags.
+
         :notes:
             If array is an instance of a `h5py.Dataset`, then the output
             file will include blocksizes based on the `h5py.Dataset's`
@@ -661,8 +666,8 @@ class FileWrite:
                 f"measurement output file already exists? {out_filename}"
             )
 
-        # TODO: Old packager never passed in tags. Perhaps we want some?
-        tags = {}
+        if tags is None:
+            tags = {}
 
         dtype = array.dtype.name
 
