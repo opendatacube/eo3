@@ -11,11 +11,12 @@ from typing import (
     Generator,
     Iterable,
     List,
+    Mapping,
     Optional,
     Sequence,
     Set,
     Tuple,
-    Union, Mapping,
+    Union,
 )
 
 import attr
@@ -628,7 +629,7 @@ class FileWrite:
         nodata: int = None,
         overview_resampling=Resampling.nearest,
         overviews: Optional[Tuple[int, ...]] = DEFAULT_OVERVIEWS,
-        tags: Optional[Mapping[str, str]] = None
+        tags: Optional[Mapping[str, str]] = None,
     ) -> WriteResult:
         """
         Writes a 2D/3D image to disk using rasterio.
