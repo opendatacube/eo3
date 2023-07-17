@@ -216,8 +216,6 @@ def from_doc(doc: Dict, skip_validation=False) -> Eo3DatasetDocBase:
             del doc["grid_spatial"]
         DATASET_SCHEMA.validate(doc)
 
-    # TODO: stable cattrs (<1.0) balks at the $schema variable.
-    del doc["$schema"]
     location = doc.pop("location", None)
     if location:
         doc["locations"] = [location]

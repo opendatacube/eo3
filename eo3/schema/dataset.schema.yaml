@@ -38,7 +38,7 @@ properties:
     # Either an epsg code ('epsg:1234') (preferred!) or a WKT string if no EPSG is possible.
     type: string
 
-  # TODO: more thorough geometry check?
+  # Should be a valid geojson geometry - a polygon or a multipolygon
   geometry:
     type: object
 
@@ -73,14 +73,12 @@ properties:
 
     properties:
       datetime:
-        # TODO: "string" type is problematic as they're
-        #       currently parsed directly into datetime objects...
+        # TODO: "string" type is problematic as they're currently parsed directly into datetime objects...
         # type: string
         format: date-time
 
       odc:processing_datetime:
-        # TODO: "string" type is problematic as they're
-        #       currently parsed directly into datetime objects...
+        # TODO: "string" type is problematic as they're currently parsed directly into datetime objects...
         # type: string
         format: date-time
     required:

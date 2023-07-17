@@ -562,7 +562,6 @@ def _validate_ds_against_data(
             else:
                 expected_dtype = expected_measurement.dtype
                 band_dtype = ds.dtypes[band - 1]
-                # TODO: NaN handling
                 if expected_dtype != band_dtype:
                     yield ValidationMessage.error(
                         "different_dtype",
