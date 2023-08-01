@@ -6,7 +6,7 @@ from enum import Enum
 
 import pytest
 
-from eo3.properties import FileFormat, degrees_type, of_enum_type, percent_type
+from eo3.properties import FileFormat, of_enum_type
 
 
 class LowerEnum(Enum):
@@ -39,19 +39,3 @@ def test_of_enum_type():
     upp = of_enum_type(UpperEnum, upper=True)
     assert upp("spam") == "SPAM"
     assert upp("BACON") == "BACON"
-
-
-def test_percent_type():
-    assert percent_type("2.22") == pytest.approx(2.22)
-    with pytest.raises(ValueError):
-        percent_type("-2.2")
-    with pytest.raises(ValueError):
-        percent_type("104.6666")
-
-
-def test_degrees_type():
-    assert degrees_type("355.3") == pytest.approx(355.3)
-    with pytest.raises(ValueError):
-        percent_type("-2.2")
-    with pytest.raises(ValueError):
-        percent_type("404.6666")

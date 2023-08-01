@@ -9,7 +9,7 @@ from odc.geo.geom import polygon
 from ruamel.yaml.comments import CommentedMap
 from shapely.geometry.base import BaseGeometry
 
-from eo3.properties import Eo3DictBase, Eo3InterfaceBase
+from eo3.properties import Eo3DictBase
 
 DEA_URI_PREFIX = "https://collections.dea.ga.gov.au"
 ODC_DATASET_SCHEMA_URL = "https://schemas.opendatacube.org/dataset"
@@ -88,17 +88,9 @@ class AccessoryDoc:
 
 
 @attr.s(auto_attribs=True, slots=True)
-class Eo3DatasetDocBase(Eo3InterfaceBase):
+class DatasetDocBase:
     """
     A minimally-validated EO3 dataset document
-
-    Includes :class:`.Eo3InterfaceBase` methods for metadata access::
-
-        >>> p = Eo3DatasetDocBase()
-        >>> p.processed = '2018-04-03'
-        >>> p.properties['odc:processing_datetime']
-        datetime.datetime(2018, 4, 3, 0, 0, tzinfo=datetime.timezone.utc)
-
     """
 
     #: Dataset UUID

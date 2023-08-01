@@ -16,7 +16,7 @@ from odc.geo.geom import (
     polygon,
 )
 
-EO3_SCHEMA = "https://schemas.opendatacube.org/dataset"
+from eo3.model import ODC_DATASET_SCHEMA_URL
 
 
 # This is should become eo3.models.GridDoc
@@ -174,7 +174,7 @@ def is_doc_eo3(doc: Dict[str, Any]) -> bool:
     if schema is None:
         return False
 
-    if schema == EO3_SCHEMA:
+    if schema == ODC_DATASET_SCHEMA_URL:
         return True
 
     # Otherwise it has an unknown schema.

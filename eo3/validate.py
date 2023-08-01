@@ -2,7 +2,6 @@
 Validate ODC dataset documents
 """
 import enum
-from datetime import datetime
 from pathlib import Path
 from textwrap import indent
 from typing import (
@@ -23,7 +22,6 @@ from uuid import UUID
 
 import attr
 import cattr
-import ciso8601
 import rasterio
 import toolz
 from attr import Factory, define, field, frozen
@@ -37,16 +35,14 @@ from shapely.validation import explain_validity
 from eo3 import model, serialise, utils
 from eo3.eo3_core import prep_eo3
 from eo3.metadata.validate import validate_metadata_type
-from eo3.model import AccessoryDoc, Eo3DatasetDocBase
+from eo3.model import AccessoryDoc, DatasetDocBase
 from eo3.product.validate import validate_product
 from eo3.ui import get_part, is_absolute, uri_resolve
 from eo3.uris import is_url
 from eo3.utils import (
-    EO3_SCHEMA,
     InvalidDocException,
     _is_nan,
     contains,
-    default_utc,
     load_documents,
     read_documents,
 )
@@ -126,7 +122,7 @@ def guess_kind_from_contents(doc: Dict):
     """
     What sort of document do the contents look like?
     """
-    if "$schema" in doc and doc["$schema"] == EO3_SCHEMA:
+    if "$schema" in doc and doc["$schema"] == model.ODC_DATASET_SCHEMA_URL:
         return DocKind.dataset
     if "metadata_type" in doc:
         if "source_type" in doc:
@@ -291,9 +287,15 @@ def validate_dataset(
             if msg.errors:
                 return
 
-    # Base properties
+    # Required properties
     # Validation is implemented in Eo3DictBase so it can be extended
-    yield from dataset.properties.validate_eo3_properties(msg)
+    try:
+        dataset.properties.validate_properties()
+    except KeyError as e:
+        yield msg.error(
+            "required_properties",
+            str(e).strip("'"),
+        )
 
     # Accessories
     for acc_name, accessory in dataset.accessories.items():
@@ -329,21 +331,6 @@ def _validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMess
     """
     Validate against eo3 schema
     """
-    schema = doc.get("$schema")
-    if schema is None:
-        yield msg.error(
-            "no_schema",
-            f"No $schema field. "
-            f"You probably want an ODC dataset schema {model.ODC_DATASET_SCHEMA_URL!r}",
-        )
-        return
-    if schema != model.ODC_DATASET_SCHEMA_URL:
-        yield msg.error(
-            "unknown_doc_type",
-            f"Unknown doc schema {schema!r}. Only ODC datasets are supported ({model.ODC_DATASET_SCHEMA_URL!r})",
-        )
-        return
-
     for error in serialise.DATASET_SCHEMA.iter_errors(doc):
         displayable_path = ".".join(error.absolute_path)
 
@@ -355,7 +342,7 @@ def _validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMess
         yield msg.error("structure", f"{context}{error.message} ", hint=hint)
 
 
-def _validate_measurements(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
+def _validate_measurements(dataset: DatasetDocBase, msg: ContextualMessager):
     for name, measurement in dataset.measurements.items():
         grid_name = measurement.grid
         if grid_name != "default" or dataset.grids:
@@ -418,7 +405,7 @@ def _validate_lineage(lineage, msg):
 
 
 def _validate_ds_to_product(
-    dataset: Eo3DatasetDocBase,
+    dataset: DatasetDocBase,
     required_measurements: MutableMapping[str, "ExpectedMeasurement"],
     product_definition: Mapping,
     allow_extra_measurements: Sequence[str],
@@ -518,7 +505,7 @@ def _validate_ds_to_metadata_type(
 
 
 def _validate_ds_against_data(
-    dataset: Eo3DatasetDocBase,
+    dataset: DatasetDocBase,
     readable_location: str,
     required_measurements: Dict[str, "ExpectedMeasurement"],
     msg: ContextualMessager,
@@ -851,67 +838,8 @@ def _differences_as_hint(product_diffs):
     return indent("\n".join(product_diffs), prefix="\t")
 
 
-def _validate_eo3_properties(dataset: Eo3DatasetDocBase, msg: ContextualMessager):
-    for name, value in dataset.properties.items():
-        if name in dataset.properties.KNOWN_PROPERTIES:
-            normaliser = dataset.properties.KNOWN_PROPERTIES.get(name)
-            if normaliser and value is not None:
-                try:
-                    normalised_value = normaliser(value)
-                    # A normaliser can return two values, the latter adding extra extracted fields.
-                    if isinstance(normalised_value, tuple):
-                        normalised_value = normalised_value[0]
-
-                    # It's okay for datetimes to be strings
-                    # .. since ODC's own loader does that.
-                    if isinstance(normalised_value, datetime) and isinstance(
-                        value, str
-                    ):
-                        value = ciso8601.parse_datetime(value)
-
-                    # Special case for dates, as "no timezone" and "utc timezone" are treated identical.
-                    if isinstance(value, datetime):
-                        value = default_utc(value)
-
-                    if not isinstance(value, type(normalised_value)):
-                        yield msg.warning(
-                            "property_type",
-                            f"Value {value} expected to be "
-                            f"{type(normalised_value).__name__!r} (got {type(value).__name__!r})",
-                        )
-                    elif normalised_value != value:
-                        if _is_nan(normalised_value) and _is_nan(value):
-                            # Both are NaNs, ignore.
-                            pass
-                        else:
-                            yield ValidationMessage.warning(
-                                "property_formatting",
-                                f"Property {value!r} expected to be {normalised_value!r}",
-                            )
-                except ValueError as e:
-                    yield msg.error("invalid_property", f"{name!r}: {e.args[0]}")
-        # else: warning for unknown property?
-    if "odc:producer" in dataset.properties:
-        producer = dataset.properties["odc:producer"]
-        # We use domain name to avoid arguing about naming conventions ('ga' vs 'geoscience-australia' vs ...)
-        if "." not in producer:
-            yield msg.warning(
-                "producer_domain",
-                "Property 'odc:producer' should be the organisation's domain name. Eg. 'ga.gov.au'",
-            )
-
-    # This field is a little odd, but is expected by the current version of ODC.
-    # (from discussion with Kirill)
-    if not dataset.properties.get("odc:file_format"):
-        yield msg.warning(
-            "global_file_format",
-            "Property 'odc:file_format' is empty",
-            hint="Usually 'GeoTIFF'",
-        )
-
-
 def _validate_geo(
-    dataset: Eo3DatasetDocBase, msg: ContextualMessager, expect_geometry: bool = True
+    dataset: DatasetDocBase, msg: ContextualMessager, expect_geometry: bool = True
 ):
     # If we're not expecting geometry, and there's no geometry, then there's nothing to see here.
     if not expect_geometry and (
@@ -985,7 +913,7 @@ def _validate_grids(grids, default_crs, msg):
             yield from _validate_crs(grid_def.crs, sub_msg)
 
 
-def _has_some_geo(dataset: Eo3DatasetDocBase) -> bool:
+def _has_some_geo(dataset: DatasetDocBase) -> bool:
     return dataset.geometry is not None or dataset.grids or dataset.crs
 
 

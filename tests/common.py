@@ -12,7 +12,7 @@ from ruamel import yaml
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from eo3 import Eo3DatasetDocBase, serialise
+from eo3 import DatasetDocBase, serialise
 from eo3.validation_msg import Level, ValidationMessage, ValidationMessages
 
 
@@ -74,8 +74,8 @@ def assert_expected_eo3_path(
 
 
 def assert_expected_eo3(
-    expected_doc: Eo3DatasetDocBase,
-    given_doc: Eo3DatasetDocBase,
+    expected_doc: DatasetDocBase,
+    given_doc: DatasetDocBase,
     *,
     ignore_fields=(),
 ):

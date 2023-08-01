@@ -61,10 +61,10 @@ def test_invalid_eo3_schema(example_metadata: Dict):
     """When there's no eo3 $schema defined"""
     del example_metadata["$schema"]
     msgs = MessageCatcher(validate_dataset(example_metadata))
-    assert "no_schema:" in msgs.error_text()
+    assert "$schema" in msgs.error_text()
     example_metadata["$schema"] = "https://schemas.onepdapatube.org/dataset"
     msgs = MessageCatcher(validate_dataset(example_metadata))
-    assert "unknown_doc_type" in msgs.error_text()
+    assert "($schema)" in msgs.error_text()
 
 
 def test_allow_optional_geo(example_metadata: Dict):

@@ -7,7 +7,7 @@ from typing import Callable, Dict
 import pytest
 
 from eo3 import serialise
-from eo3.model import Eo3DatasetDocBase
+from eo3.model import DatasetDocBase
 
 # from eo3.prepare.landsat_l1_prepare import normalise_nci_symlinks
 
@@ -80,7 +80,7 @@ def l1_c2_ls8_folder(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def l1_ls8_metadata_path(
-    l1_ls8_folder: Path, l1_ls8_dataset: Eo3DatasetDocBase
+    l1_ls8_folder: Path, l1_ls8_dataset: DatasetDocBase
 ) -> Path:
     path = l1_ls8_folder / f"{l1_ls8_dataset.label}.odc-metadata.yaml"
     serialise.to_path(path, l1_ls8_dataset)
@@ -120,7 +120,7 @@ def _make_copy(input_path, tmp_path):
 
 
 @pytest.fixture
-def l1_ls8_dataset(l1_ls8_folder_md_expected: Dict) -> Eo3DatasetDocBase:
+def l1_ls8_dataset(l1_ls8_folder_md_expected: Dict) -> DatasetDocBase:
     return serialise.from_doc(l1_ls8_folder_md_expected)
 
 

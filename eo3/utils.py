@@ -28,8 +28,6 @@ import numpy
 
 from eo3.uris import as_url, mk_part_uri
 
-EO3_SCHEMA = "https://schemas.opendatacube.org/dataset"
-
 
 class ItemProvider(enum.Enum):
     PRODUCER = "producer"
@@ -159,33 +157,6 @@ def get_collection_number(
     raise NotImplementedError(
         f"Unsupported collection number mapping for org: {producer!r}"
     )
-
-
-def is_doc_eo3(doc: Dict[str, Any]) -> bool:
-    """Is this document eo3?
-
-    :param doc: Parsed ODC Dataset metadata document
-
-    :returns:
-        False if this document is a legacy dataset
-        True if this document is eo3
-
-    :raises ValueError: For an unsupported document
-    """
-    schema = doc.get("$schema")
-    # All legacy documents had no schema at all.
-    if schema is None:
-        return False
-
-    if schema == EO3_SCHEMA:
-        return True
-
-    # Otherwise it has an unknown schema.
-    #
-    # Reject it for now.
-    # We don't want future documents (like Stac items, or "eo4") to be quietly
-    # accepted as legacy eo.
-    raise ValueError(f"Unsupported dataset schema: {schema!r}")
 
 
 def flatten_dict(

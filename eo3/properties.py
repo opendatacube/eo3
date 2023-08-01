@@ -9,8 +9,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 import ciso8601
 from ruamel.yaml.timestamp import TimeStamp as RuamelTimeStamp
 
-from eo3.utils import _is_nan, default_utc
-from eo3.validation_msg import ContextualMessager, ValidationMessage, ValidationMessages
+from eo3.utils import default_utc
 
 
 class FileFormat(Enum):
@@ -61,6 +60,15 @@ def datetime_type(value):
     return default_utc(value)
 
 
+def degrees_type(value):
+    value = float(value)
+
+    if not (-360.0 <= value <= 360.0):
+        raise ValueError("Expected degrees between -360,+360")
+
+    return value
+
+
 def of_enum_type(
     vals: Union[EnumMeta, Tuple[str, ...]] = None, lower=False, upper=False, strict=True
 ) -> Callable[[str], str]:
@@ -87,31 +95,37 @@ def of_enum_type(
     return normalise
 
 
-def percent_type(value):
-    value = float(value)
-
-    if not (0.0 <= value <= 100.0):
-        raise ValueError("Expected percent between 0,100")
-    return value
-
-
-def degrees_type(value):
-    value = float(value)
-
-    if not (-360.0 <= value <= 360.0):
-        raise ValueError("Expected degrees between -360,+360")
-
-    return value
-
-
-def identifier_type(v: str):
-    v = v.replace("-", "_")
-    if not v.isidentifier() or not v.islower():
+def producer_check(value):
+    if "." not in value:
         warnings.warn(
-            f"{v!r} is expected to be an identifier "
-            "(alphanumeric with underscores, typically lowercase)"
+            "Property 'odc:producer' is expected to be a domain name, "
+            "eg 'usgs.gov' or 'ga.gov.au'"
         )
-    return v
+    return value
+
+
+def normalise_platforms(value: Union[str, list, set]):
+    """
+    >>> normalise_platforms('LANDSAT_8')
+    'landsat-8'
+    >>> # Multiple can be comma-separated. They're normalised independently and sorted.
+    >>> normalise_platforms('LANDSAT_8,Landsat-5,landsat-7')
+    'landsat-5,landsat-7,landsat-8'
+    >>> # Can be given as a list.
+    >>> normalise_platforms(['sentinel-2b','SENTINEL-2a'])
+    'sentinel-2a,sentinel-2b'
+    >>> # Deduplicated too
+    >>> normalise_platforms('landsat-5,landsat-5,LANDSAT-5')
+    'landsat-5'
+    """
+    if not isinstance(value, (list, set, tuple)):
+        value = value.split(",")
+
+    platforms = sorted({s.strip().lower().replace("_", "-") for s in value if s})
+    if not platforms:
+        return None
+
+    return ",".join(platforms)
 
 
 # The primitive types allowed as stac values.
@@ -142,8 +156,7 @@ class Eo3DictBase(collections.abc.MutableMapping):
     the input dictionary on creation, but you can disable this with `normalise_input=False`.
     """
 
-    # Every property we know about.  Subclasses should extend this mapping.
-    # TODO: Really need to add at least dataset maturity and region code
+    # Every property we know about. Subclasses should extend this mapping.
     KNOWN_PROPERTIES: Mapping[str, Optional[NormaliseValueFn]] = {
         "datetime": datetime_type,
         "dtr:end_datetime": datetime_type,
@@ -151,7 +164,22 @@ class Eo3DictBase(collections.abc.MutableMapping):
         "odc:file_format": of_enum_type(FileFormat, strict=False),
         "odc:processing_datetime": datetime_type,
         "odc:product": None,
+        "dea:dataset_maturity": of_enum_type(("final", "interim", "nrt"), lower=True),
+        "odc:region_code": None,
+        "odc:producer": producer_check,
+        # Common STAC properties
+        "eo:gsd": None,
+        "eo:instrument": None,
+        "eo:platform": normalise_platforms,
+        "eo:constellation": None,
+        "eo:off_nadir": float,
+        "eo:azimuth": float,
+        "eo:sun_azimuth": degrees_type,
+        "eo:sun_elevation": degrees_type,
     }
+
+    # Required properties whose presence will be enforced.
+    REQUIRED_PROPERTIES = ["datetime", "odc:processing_datetime"]
 
     def __init__(self, properties: Mapping = None, normalise_input=True) -> None:
         if properties is None:
@@ -213,7 +241,7 @@ class Eo3DictBase(collections.abc.MutableMapping):
         :argument expect_override: We expect to overwrite a property, so don't produce a warning or error.
         """
         if key not in self.KNOWN_PROPERTIES:
-            warnings.warn(f"Unknown Stac property {key!r}. ")
+            warnings.warn(f"Unknown Stac property {key!r}.")
 
         if value is not None:
             normalise = self.KNOWN_PROPERTIES.get(key)
@@ -243,151 +271,15 @@ class Eo3DictBase(collections.abc.MutableMapping):
     def nested(self):
         return nest_properties(self._props)
 
-    def validate_eo3_properties(self, msg: ContextualMessager) -> ValidationMessages:
-        for name, value in self.items():
-            yield from self.validate_eo3_property(name, value, msg)
-
-        # ODC requires this
-        if not self.get("odc:file_format"):
-            yield msg.error(
-                "global_file_format",
-                "Property 'odc:file_format' is empty",
-                hint="Usually 'GeoTIFF'",
-            )
-
-    def validate_eo3_property(
-        self, name, value, msg: ContextualMessager
-    ) -> ValidationMessages:
-        # Everything has already been through normalise_and_set above, so
-        # most of these errors are untriggerable?
-        if name in self.KNOWN_PROPERTIES:
-            normaliser = self.KNOWN_PROPERTIES.get(name)
-            if normaliser and value is not None:
-                try:
-                    normalised_value = normaliser(value)
-                    # A normaliser can return two values, the latter adding extra extracted fields.
-                    if isinstance(normalised_value, tuple):
-                        normalised_value = normalised_value[0]
-
-                    # It's okay for datetimes to be strings
-                    # .. since ODC's own loader does that.
-                    if isinstance(normalised_value, datetime) and isinstance(
-                        value, str
-                    ):
-                        value = ciso8601.parse_datetime(value)
-
-                    # Special case for dates, as "no timezone" and "utc timezone" are treated identical.
-                    if isinstance(value, datetime):
-                        value = default_utc(value)
-
-                    if not isinstance(value, type(normalised_value)):
-                        yield msg.warning(
-                            "property_type",
-                            f"Value {value} expected to be "
-                            f"{type(normalised_value).__name__!r} (got {type(value).__name__!r})",
-                        )
-                    elif normalised_value != value:
-                        if _is_nan(normalised_value) and _is_nan(value):
-                            # Both are NaNs, ignore.
-                            pass
-                        else:
-                            yield ValidationMessage.warning(
-                                "property_formatting",
-                                f"Property {value!r} expected to be {normalised_value!r}",
-                            )
-                except ValueError as e:
-                    yield msg.error("invalid_property", f"{name!r}: {e.args[0]}")
-        if name == "odc:producer":
-            # We use domain name to avoid arguing about naming conventions ('ga' vs 'geoscience-australia' vs ...)
-            if "." not in self["odc:producer"]:
-                yield msg.warning(
-                    "producer_domain",
-                    "Property 'odc:producer' should be the organisation's domain name. Eg. 'ga.gov.au'",
-                )
+    def validate_properties(self):
+        # Enforce presence of properties identified as required
+        missing_required = []
+        for prop in self.REQUIRED_PROPERTIES:
+            if self._props.get(prop) is None:
+                missing_required.append(prop)
+        if missing_required:
+            raise KeyError(f"The following required properties are missing or None: {', '.join(missing_required)}")
 
 
 class PropertyOverrideWarning(UserWarning):
     """A warning that a property was set twice with different values."""
-
-
-class Eo3InterfaceBase:
-    """
-    These are convenience properties for common metadata fields. They are available
-    on DatasetAssemblers and within other naming APIs.
-
-    (This is abstract. If you want one of these of your own, you probably want to create
-    an :class:`eo3.DatasetDoc`)
-
-    """
-
-    @property
-    @abstractmethod
-    def properties(self) -> Eo3DictBase:
-        raise NotImplementedError
-
-    @property
-    def product_name(self) -> Optional[str]:
-        """
-        The ODC product name
-        """
-        return self.properties.get("odc:product")
-
-    @product_name.setter
-    def product_name(self, value: str):
-        self.properties["odc:product"] = value
-
-    @property
-    def datetime_range(self) -> Tuple[datetime, datetime]:
-        """
-        An optional date range for the dataset.
-
-        The ``datetime`` is still mandatory when this is set.
-
-        This field is a shorthand for reading/setting the datetime-range
-        stac 0.6 extension properties: ``dtr:start_datetime`` and ``dtr:end_datetime``
-        """
-        return (
-            self.properties.get("dtr:start_datetime"),
-            self.properties.get("dtr:end_datetime"),
-        )
-
-    @datetime_range.setter
-    def datetime_range(self, val: Tuple[datetime, datetime]):
-        # TODO: string type conversion, better validation/errors
-        start, end = val
-        self.properties["dtr:start_datetime"] = start
-        self.properties["dtr:end_datetime"] = end
-
-    @property
-    def processed(self) -> datetime:
-        """When the dataset was created (Defaults to UTC if not specified)
-
-        Shorthand for the ``odc:processing_datetime`` field
-        """
-        return self.properties.get("odc:processing_datetime")
-
-    @processed.setter
-    def processed(self, value: Union[str, datetime]):
-        self.properties["odc:processing_datetime"] = value
-
-    def processed_now(self):
-        """
-        Shorthand for when the dataset was processed right now on the current system.
-        """
-        self.properties["odc:processing_datetime"] = datetime.utcnow()
-
-    # Note that giving a method the name 'datetime' will override the 'datetime' type
-    # for class-level declarations (ie, for any types on functions!)
-    # So we make an alias:
-    from datetime import datetime as datetime_
-
-    @property
-    def datetime(self) -> datetime_:
-        """
-        The searchable date and time of the assets. (Default to UTC if not specified)
-        """
-        return self.properties.get("datetime")
-
-    @datetime.setter
-    def datetime(self, val: datetime_):
-        self.properties["datetime"] = val

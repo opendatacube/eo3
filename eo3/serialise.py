@@ -20,7 +20,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from eo3.model import ODC_DATASET_SCHEMA_URL, Eo3DatasetDocBase, Eo3DictBase
+from eo3.model import ODC_DATASET_SCHEMA_URL, DatasetDocBase, Eo3DictBase
 from eo3.properties import FileFormat
 from eo3.utils import read_documents
 
@@ -131,7 +131,7 @@ def loads_yaml(stream: Union[str, IO]) -> Iterable[Dict]:
     return _yaml().load_all(stream)
 
 
-def from_path(path: Path, skip_validation=False) -> Eo3DatasetDocBase:
+def from_path(path: Path, skip_validation=False) -> DatasetDocBase:
     """
     Parse an EO3 document from a filesystem path
 
@@ -196,7 +196,7 @@ METADATA_TYPE_SCHEMA = _load_schema_validator(
 )
 
 
-def from_doc(doc: Dict, skip_validation=False) -> Eo3DatasetDocBase:
+def from_doc(doc: Dict, skip_validation=False) -> DatasetDocBase:
     """
     Parse a dictionary into an EO3 dataset.
 
@@ -220,14 +220,14 @@ def from_doc(doc: Dict, skip_validation=False) -> Eo3DatasetDocBase:
     if location:
         doc["locations"] = [location]
 
-    return converter.structure(doc, Eo3DatasetDocBase)
+    return converter.structure(doc, DatasetDocBase)
 
 
 def _structure_as_uuid(d, t):
     return uuid.UUID(str(d))
 
 
-def _structure_as_stac_props(d, t, normalise_properties=False):
+def _structure_as_eo3_props(d, t, normalise_properties=False):
     """
     :param normalise_properties:
         We don't normalise properties by default as we usually want it to reflect the original file.
@@ -267,13 +267,13 @@ converter.register_structure_hook(uuid.UUID, _structure_as_uuid)
 converter.register_structure_hook(BaseGeometry, _structure_as_shape)
 converter.register_structure_hook(
     Eo3DictBase,
-    partial(_structure_as_stac_props, normalise_properties=False),
+    partial(_structure_as_eo3_props, normalise_properties=False),
 )
 converter.register_structure_hook(Affine, _structure_as_affine)
 converter.register_unstructure_hook(Eo3DictBase, _unstructure_as_stac_props)
 
 
-def to_doc(d: Eo3DatasetDocBase) -> Dict:
+def to_doc(d: DatasetDocBase) -> Dict:
     """
     Serialise a DatasetDoc to a dict
 
@@ -303,7 +303,7 @@ def to_doc(d: Eo3DatasetDocBase) -> Dict:
     return doc
 
 
-def to_formatted_doc(d: Eo3DatasetDocBase) -> CommentedMap:
+def to_formatted_doc(d: DatasetDocBase) -> CommentedMap:
     """Serialise a DatasetDoc to a yaml-serialisation-ready dict"""
     doc = prepare_formatting(to_doc(d))
     # Add user-readable names for measurements as a comment if present.
@@ -315,7 +315,7 @@ def to_formatted_doc(d: Eo3DatasetDocBase) -> CommentedMap:
     return doc
 
 
-def to_path(path: Path, *ds: Eo3DatasetDocBase):
+def to_path(path: Path, *ds: DatasetDocBase):
     """
     Output dataset(s) as a formatted YAML to a local path
 
@@ -324,7 +324,7 @@ def to_path(path: Path, *ds: Eo3DatasetDocBase):
     dump_yaml(path, *(to_formatted_doc(d) for d in ds))
 
 
-def to_stream(stream, *ds: Eo3DatasetDocBase):
+def to_stream(stream, *ds: DatasetDocBase):
     """
     Output dataset(s) as a formatted YAML to an output stream
 
