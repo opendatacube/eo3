@@ -8,6 +8,7 @@ import re
 from collections import OrderedDict
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
+import dateutil.parser
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple, Union
@@ -467,3 +468,22 @@ def _is_nan(v):
     if isinstance(v, str):
         return v == "NaN"
     return isinstance(v, float) and math.isnan(v)
+
+
+# CORE TODO: from datacube.utils.dates
+def parse_time(time: Union[str, datetime]) -> datetime:
+    """Convert string to datetime object
+
+    This function deals with ISO8601 dates fast, and fallbacks to python for
+    other formats.
+
+    Calling this on datetime object is a no-op.
+    """
+    if isinstance(time, str):
+        try:
+            from ciso8601 import parse_datetime  # pylint: disable=wrong-import-position # noqa: F401
+            return parse_datetime(time)
+        except (ImportError, ValueError):        # pragma: no cover
+            return dateutil.parser.parse(time)
+
+    return time

@@ -10,7 +10,10 @@ from typing import Mapping, Dict, Any
 import toolz  # type: ignore[import]
 import decimal
 from datacube.utils import parse_time
-from ._base import Range
+from collections import namedtuple
+
+# is this the best place to define this
+Range = namedtuple('Range', ('begin', 'end'))
 
 # Allowed values for field 'type' (specified in a metadata type docuemnt)
 _AVAILABLE_TYPE_NAMES = (
@@ -24,11 +27,20 @@ _AVAILABLE_TYPE_NAMES = (
     'double',
     'integer',
     'datetime',
+    'object',
 
     # For backwards compatibility (alias for numeric-range)
     'float-range',
 )
 
+_TYPE_PARSERS = {
+        'string': str,
+        'double': float,
+        'integer': int,
+        'numeric': decimal.Decimal,
+        'datetime': parse_time,
+        'object': lambda x: x,
+}
 
 class Expression:
     # No properties at the moment. These are built and returned by the
@@ -95,7 +107,7 @@ class SimpleField(Field):
                  type_name,
                  name='',
                  description=''):
-        self._offset = offset
+        self.offset = offset
         self._converter = converter
         self.type_name = type_name
         super().__init__(name, description)
@@ -104,7 +116,7 @@ class SimpleField(Field):
         return SimpleEqualsExpression(self, value)
 
     def extract(self, doc):
-        v = toolz.get_in(self._offset, doc, default=None)
+        v = toolz.get_in(self.offset, doc, default=None)
         if v is None:
             return None
         return self._converter(v)
@@ -120,17 +132,20 @@ class RangeField(Field):
                  description=''):
         self.type_name = type_name
         self._converter = base_converter
-        self._min_offset = min_offset
-        self._max_offset = max_offset
+        self.min_offset = min_offset
+        self.max_offset = max_offset
+        # to be able to generically get a field's offset(s)
+        self.offset = [min_offset, max_offset]
         super().__init__(name, description)
 
     def extract(self, doc):
         def extract_raw(paths):
             vv = [toolz.get_in(p, doc, default=None) for p in paths]
+            # shouldn't it stop at the first path that works?
             return [self._converter(v) for v in vv if v is not None]
 
-        v_min = extract_raw(self._min_offset)
-        v_max = extract_raw(self._max_offset)
+        v_min = extract_raw(self.min_offset)
+        v_max = extract_raw(self.max_offset)
 
         v_min = None if len(v_min) == 0 else min(v_min)
         v_max = None if len(v_max) == 0 else max(v_max)
@@ -142,23 +157,15 @@ class RangeField(Field):
 
 
 def parse_search_field(doc, name=''):
-    parsers = {
-        'string': str,
-        'double': float,
-        'integer': int,
-        'numeric': decimal.Decimal,
-        'datetime': parse_time,
-        'object': lambda x: x,
-    }
     _type = doc.get('type', 'string')
 
-    if _type in parsers:
+    if _type in _TYPE_PARSERS:
         offset = doc.get('offset', None)
         if offset is None:
             raise ValueError('Missing offset')
 
         return SimpleField(offset,
-                           parsers[_type],
+                           _TYPE_PARSERS[_type],
                            _type,
                            name=name,
                            description=doc.get('description', ''))
@@ -172,7 +179,7 @@ def parse_search_field(doc, name=''):
         raw_type = 'numeric'
         _type = 'numeric-range'
 
-    if raw_type not in parsers:
+    if raw_type not in _TYPE_PARSERS:
         raise ValueError('Unsupported search field type: ' + str(_type))
 
     min_offset = doc.get('min_offset', None)
@@ -183,16 +190,41 @@ def parse_search_field(doc, name=''):
 
     return RangeField(min_offset,
                       max_offset,
-                      parsers[raw_type],
+                      _TYPE_PARSERS[raw_type],
                       _type,
                       name=name,
                       description=doc.get('description', ''))
 
 
-def get_dataset_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+def get_search_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
     """Construct search fields dictionary not tied to any specific db
     implementation.
 
     """
     fields = toolz.get_in(['dataset', 'search_fields'], metadata_definition, {})
     return {n: parse_search_field(doc, name=n) for n, doc in fields.items()}
+
+
+def parse_offset_field(name='', offset=[]):
+    field_types = {
+        'id': 'string',
+        'label': 'string',
+        'format': 'string',
+        'sources': 'object',
+        'creation_dt': 'datetime',
+        'grid_spatial': 'object',
+        'measurements': 'object',
+    }
+
+    if name in field_types:
+        _type = field_types[name]
+        return SimpleField(offset,
+                           _TYPE_PARSERS[_type],
+                           _type,
+                           name=name)
+
+
+def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+    fields = metadata_definition.get('dataset')
+    return {name: parse_offset_field(name, offset) for name, offset in fields.items()
+            if name != "search_fields"}
