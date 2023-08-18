@@ -1,24 +1,13 @@
 """
 Validate ODC dataset documents
 """
-from textwrap import indent
-from typing import (
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Set,
-    Tuple,
-)
 import warnings
+from textwrap import indent
+from typing import Dict, Iterable, List, Mapping, Set, Tuple
 
 from eo3 import serialise, utils
 from eo3.utils import contains
-from eo3.validation_msg import (
-    ContextualMessager,
-    Level,
-    ValidationMessages,
-)
+from eo3.validation_msg import ContextualMessager, Level, ValidationMessages
 
 
 def validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMessages:
@@ -61,7 +50,9 @@ def validate_ds_to_product(
             hint=difference_hint,
         )
 
-    product_measurement_names = [m["name"] for m in product_definition.get("measurements")]
+    product_measurement_names = [
+        m["name"] for m in product_definition.get("measurements")
+    ]
     doc_measurements = doc.get("measurements").keys()
     for name in product_measurement_names:
         if name not in doc_measurements:
@@ -93,7 +84,9 @@ def validate_ds_to_metadata_type(
         metadata_type=metadata_type_definition
     ):
         # If none of a field's offsets are in the document - ignore for lineage
-        if field_name != "sources" and not any(_has_offset(doc, offset) for offset in offsets):
+        if field_name != "sources" and not any(
+            _has_offset(doc, offset) for offset in offsets
+        ):
             # ... warn them.
             readable_offsets = " or ".join("->".join(offset) for offset in offsets)
             yield msg.warning(
@@ -174,12 +167,10 @@ class IncompleteDatasetError(Exception):
 
     (such as mandatory metadata)
     """
-    pass
 
 
 class IncompleteDatasetWarning(UserWarning):
     """A non-critical warning for invalid or incomplete metadata"""
-    pass
 
 
 def handle_validation_messages(messages: ValidationMessages):

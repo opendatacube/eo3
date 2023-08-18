@@ -1,6 +1,5 @@
 ---
 # Metadata Type
-# url: https://explorer.dev.dea.ga.gov.au/metadata-types/eo3.odc-type.yaml
 name: eo3
 description: Default EO3 with no custom fields
 dataset:

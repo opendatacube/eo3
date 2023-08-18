@@ -1,6 +1,5 @@
 import collections.abc
 import warnings
-from abc import abstractmethod
 from collections import defaultdict
 from datetime import datetime
 from enum import Enum, EnumMeta
@@ -278,7 +277,9 @@ class Eo3DictBase(collections.abc.MutableMapping):
             if self._props.get(prop) is None:
                 missing_required.append(prop)
         if missing_required:
-            raise KeyError(f"The following required properties are missing or None: {', '.join(missing_required)}")
+            raise KeyError(
+                f"The following required properties are missing or None: {', '.join(missing_required)}"
+            )
 
 
 class PropertyOverrideWarning(UserWarning):

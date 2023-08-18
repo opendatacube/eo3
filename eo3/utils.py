@@ -8,14 +8,14 @@ import re
 from collections import OrderedDict
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
-import dateutil.parser
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple, Union
+from typing import Any, Iterable, Mapping, Sequence, Tuple, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from uuid import UUID
 
+import dateutil.parser
 import yaml
 
 try:
@@ -481,9 +481,12 @@ def parse_time(time: Union[str, datetime]) -> datetime:
     """
     if isinstance(time, str):
         try:
-            from ciso8601 import parse_datetime  # pylint: disable=wrong-import-position # noqa: F401
+            from ciso8601 import (  # pylint: disable=wrong-import-position # noqa: F401
+                parse_datetime,
+            )
+
             return parse_datetime(time)
-        except (ImportError, ValueError):        # pragma: no cover
+        except (ImportError, ValueError):  # pragma: no cover
             return dateutil.parser.parse(time)
 
     return time

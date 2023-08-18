@@ -1,22 +1,18 @@
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Mapping
 import warnings
+from pathlib import Path
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 import affine
 import attr
+import toolz
 from odc.geo import CoordList, Geometry, SomeCRS
 from odc.geo.geom import polygon
 
 from eo3 import validate
-from eo3.validation_msg import (
-    ContextualMessager,
-    ValidationMessages,
-)
 from eo3.eo3_core import prep_eo3
-from eo3.fields import get_search_fields, get_system_fields, Range
+from eo3.fields import Range, get_search_fields, get_system_fields
 from eo3.utils import read_documents
-
-import toolz
+from eo3.validation_msg import ContextualMessager, ValidationMessages
 
 DEA_URI_PREFIX = "https://collections.dea.ga.gov.au"
 ODC_DATASET_SCHEMA_URL = "https://schemas.opendatacube.org/dataset"
@@ -94,28 +90,42 @@ class AccessoryDoc:
     name: str = attr.ib(metadata=dict(doc_exclude=True), default=None)
 
 
-class DatasetMetadata(object):
-    def __init__(self, raw_dict, mdt_definition: Mapping = None, normalisation_mapping = None, legacy_lineage = False):
-        self.__dict__['_doc'] = prep_eo3(raw_dict, remap_lineage=legacy_lineage)
+class DatasetMetadata:
+    def __init__(
+        self,
+        raw_dict,
+        mdt_definition: Mapping = None,
+        normalisation_mapping=None,
+        legacy_lineage=False,
+    ):
+        self.__dict__["_doc"] = prep_eo3(raw_dict, remap_lineage=legacy_lineage)
 
         if mdt_definition is None:
             # placeholder path
-            mdt_definition = read_documents(Path(__file__).parent / "metadata" / "default-eo3-type.yaml")
-        self.__dict__['_mdt_definition'] = mdt_definition
+            mdt_definition = read_documents(
+                Path(__file__).parent / "metadata" / "default-eo3-type.yaml"
+            )
+        self.__dict__["_mdt_definition"] = mdt_definition
 
         # The user-configurable search fields for this dataset type.
-        self.__dict__['_search_fields'] = {name: field
-                                           for name, field in get_search_fields(mdt_definition).items()}
+        self.__dict__["_search_fields"] = {
+            name: field for name, field in get_search_fields(mdt_definition).items()
+        }
         # The field offsets that the datacube itself understands: id, format, sources etc.
         # (See the metadata-type-schema.yaml or the comments in default-metadata-types.yaml)
-        self.__dict__['_system_offsets'] = {name: field
-                                            for name, field in get_system_fields(mdt_definition).items()}
-        
-        self.__dict__['_normalisation_mapping'] = normalisation_mapping
+        self.__dict__["_system_offsets"] = {
+            name: field for name, field in get_system_fields(mdt_definition).items()
+        }
 
-        self.__dict__['_msg'] = ContextualMessager({"product": self._doc.get("product").get("name"),
-                                                    "type": mdt_definition.get("name")})
-        
+        self.__dict__["_normalisation_mapping"] = normalisation_mapping
+
+        self.__dict__["_msg"] = ContextualMessager(
+            {
+                "product": self._doc.get("product").get("name"),
+                "type": mdt_definition.get("name"),
+            }
+        )
+
         self.validate_base()
 
     def __getattr__(self, name):
@@ -123,16 +133,16 @@ class DatasetMetadata(object):
             return self.fields[name]
         else:
             raise AttributeError(
-                'Unknown field %r. Expected one of %r' % (
+                "Unknown field {!r}. Expected one of {!r}".format(
                     name, list(self.fields.keys())
                 )
             )
-    
+
     def __setattr__(self, name, val):
         offset = self.all_offsets.get(name)
         if offset is None:
             raise AttributeError(
-                'Unknown field offset %r. Expected one of %r' % (
+                "Unknown field offset {!r}. Expected one of {!r}".format(
                     name, list(self.all_offsets.keys())
                 )
             )
@@ -142,16 +152,22 @@ class DatasetMetadata(object):
         if isinstance(offset[0], list):
             is_range = isinstance(val, Range)
             # time can be a range or a single datetime
-            if name == 'time':
+            if name == "time":
                 if is_range:
-                    self._doc = toolz.assoc_in(self._doc, ["properties", "dtr:start_datetime"], val.begin)
-                    self._doc = toolz.assoc_in(self._doc, ["properties", "dtr:end_datetime"], val.end)
+                    self._doc = toolz.assoc_in(
+                        self._doc, ["properties", "dtr:start_datetime"], val.begin
+                    )
+                    self._doc = toolz.assoc_in(
+                        self._doc, ["properties", "dtr:end_datetime"], val.end
+                    )
                 else:
-                    self._doc = toolz.assoc_in(self._doc, ["properties", "datetime"], val)
+                    self._doc = toolz.assoc_in(
+                        self._doc, ["properties", "datetime"], val
+                    )
             # for all other range fields, value must be range
             else:
                 if not is_range:
-                    raise TypeError('Field must be a range')
+                    raise TypeError("Field must be a range")
                 # this assumes that offsets are in min, max order
                 # and that there aren't multiple possible offsets for each
                 self._doc = toolz.assoc_in(self._doc, offset[0], val.begin)
@@ -162,7 +178,7 @@ class DatasetMetadata(object):
 
     def __dir__(self):
         return list(self.fields)
-    
+
     @property
     def doc(self):
         return self._doc
@@ -175,28 +191,34 @@ class DatasetMetadata(object):
 
     @property
     def search_fields(self):
-        return {name: field.extract(self.doc)
-                for name, field in self._search_fields.items()}
+        return {
+            name: field.extract(self.doc) for name, field in self._search_fields.items()
+        }
 
     @property
     def system_fields(self):
-        return {name: field.extract(self.doc)
-                for name, field in self._system_offsets.items()}
+        return {
+            name: field.extract(self.doc)
+            for name, field in self._system_offsets.items()
+        }
 
     @property
     def fields(self):
         return dict(**self.system_fields, **self.search_fields)
-    
-    @property
-    def locations(self):
-        if self.doc.get("location"):
-            warnings.warn("`location` is deprecated and will be removed in a future release. Use `locations` instead.")
-            return [self.doc.get("location")]
-        return self.doc.get("locations", None)
 
     @property
     def properties(self):
         return self.doc.get("properties")
+
+    # Additional metadata not included in the metadata type
+    @property
+    def locations(self):
+        if self.doc.get("location"):
+            warnings.warn(
+                "`location` is deprecated and will be removed in a future release. Use `locations` instead."
+            )
+            return [self.doc.get("location")]
+        return self.doc.get("locations", None)
 
     @property
     def product(self):
@@ -205,8 +227,9 @@ class DatasetMetadata(object):
     @property
     def geometry(self):
         from shapely.geometry import shape
+
         return shape(self.doc.get("geometry"))
-    
+
     @property
     def grids(self):
         return {key: GridDoc(**doc) for key, doc in self.doc.get("grids")}
@@ -214,24 +237,101 @@ class DatasetMetadata(object):
     @property
     def measurements(self):
         return {key: MeasurementDoc(**doc) for key, doc in self.doc.get("measurements")}
-    
+
     @property
     def accessories(self):
         return {key: AccessoryDoc(**doc) for key, doc in self.doc.get("accessories")}
 
+    # Additional properties not included in the search fields
+    @property
+    def constellation(self) -> str:
+        """
+        Constellation. Eg ``sentinel-2``.
+        """
+        return self.properties.get("eo:constellation")
+
+    @constellation.setter
+    def constellation(self, value: str):
+        self.properties["eo:constellation"] = value
+
+    @property
+    def producer(self) -> str:
+        """
+        Organisation that produced the data.
+
+        eg. ``usgs.gov`` or ``ga.gov.au``
+
+        Shorthand for ``odc:producer`` property
+        """
+        return self.properties.get("odc:producer")
+
+    @producer.setter
+    def producer(self, domain: str):
+        self.properties["odc:producer"] = domain
+
+    @property
+    def dataset_version(self) -> str:
+        """
+        The version of the dataset.
+
+        Typically digits separated by a dot. Eg. `1.0.0`
+
+        The first digit is usually the collection number for
+        this 'producer' organisation, such as USGS Collection 1 or
+        GA Collection 3.
+        """
+        return self.properties.get("odc:dataset_version")
+
+    @dataset_version.setter
+    def dataset_version(self, value):
+        self.properties["odc:dataset_version"] = value
+
+    @property
+    def collection_number(self) -> int:
+        """
+        The version of the collection.
+
+        Eg.::
+
+           metadata:
+             product_family: wofs
+             dataset_version: 1.6.0
+             collection_number: 3
+
+        """
+        return self.properties.get("odc:collection_number")
+
+    @collection_number.setter
+    def collection_number(self, value):
+        self.properties["odc:collection_number"] = value
+
+    @property
+    def product_maturity(self) -> str:
+        """
+        Classification: is this a 'provisional' or 'stable' release of the product?
+        """
+        return self.properties.get("dea:product_maturity")
+
+    @product_maturity.setter
+    def product_maturity(self, value):
+        self.properties["dea:product_maturity"] = value
+
+    # Validation and other methods
     def without_lineage(self):
-        return toolz.assoc(self.doc, 'lineage', {})
+        return toolz.assoc(self.doc, "lineage", {})
 
     def normalise(self, key, value):
         if key not in self._normalisation_mapping:
-            warnings.warn(f"Unknown Stac property {key!r}.")
+            warnings.warn(f"Unknown property {key!r}.")
         normaliser = self._normalisation_mapping.get(key)
         if normaliser and value is not None:
-                return normaliser(value)
-        
+            return normaliser(value)
+
     def validate_to_product(self, product_definition: Mapping):
         self._msg.context["product"] = product_definition.get("name")
-        yield from validate.validate_ds_to_product(self.doc, product_definition, self._msg)
+        yield from validate.validate_ds_to_product(
+            self.doc, product_definition, self._msg
+        )
 
     def validate_to_schema(self) -> ValidationMessages:
         # don't error if properties 'extent' or 'grid_spatial' are present
@@ -239,7 +339,9 @@ class DatasetMetadata(object):
         yield from validate.validate_ds_to_schema(doc, self._msg)
 
     def validate_to_mdtype(self) -> ValidationMessages:
-        yield from validate.validate_ds_to_metadata_type(self.doc, self._mdt_definition, self._msg)
+        yield from validate.validate_ds_to_metadata_type(
+            self.doc, self._mdt_definition, self._msg
+        )
 
     def validate_base(self):
         if self._normalisation_mapping:

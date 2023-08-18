@@ -1,46 +1,43 @@
-# This file is part of the Open Data Cube, see https://opendatacube.org for more information
-#
-# Copyright (c) 2015-2023 ODC Contributors
-# SPDX-License-Identifier: Apache-2.0
+# Core TODO: copied over from datacube.model.fields
 """Non-db specific implementation of metadata search fields.
 
 This allows extraction of fields of interest from dataset metadata document.
 """
-from typing import Mapping, Dict, Any
-import toolz  # type: ignore[import]
 import decimal
-from datacube.utils import parse_time
 from collections import namedtuple
+from typing import Any, Dict, Mapping
+
+import toolz  # type: ignore[import]
+from datacube.utils import parse_time
 
 # is this the best place to define this
-Range = namedtuple('Range', ('begin', 'end'))
+Range = namedtuple("Range", ("begin", "end"))
 
 # Allowed values for field 'type' (specified in a metadata type docuemnt)
 _AVAILABLE_TYPE_NAMES = (
-    'numeric-range',
-    'double-range',
-    'integer-range',
-    'datetime-range',
-
-    'string',
-    'numeric',
-    'double',
-    'integer',
-    'datetime',
-    'object',
-
+    "numeric-range",
+    "double-range",
+    "integer-range",
+    "datetime-range",
+    "string",
+    "numeric",
+    "double",
+    "integer",
+    "datetime",
+    "object",
     # For backwards compatibility (alias for numeric-range)
-    'float-range',
+    "float-range",
 )
 
 _TYPE_PARSERS = {
-        'string': str,
-        'double': float,
-        'integer': int,
-        'numeric': decimal.Decimal,
-        'datetime': parse_time,
-        'object': lambda x: x,
+    "string": str,
+    "double": float,
+    "integer": int,
+    "numeric": decimal.Decimal,
+    "datetime": parse_time,
+    "object": lambda x: x,
 }
+
 
 class Expression:
     # No properties at the moment. These are built and returned by the
@@ -69,10 +66,11 @@ class Field:
     """
     A searchable field within a dataset/storage metadata document.
     """
+
     # type of field.
     # If type is not specified, the field is a string
     # This should always be one of _AVAILABLE_TYPE_NAMES
-    type_name = 'string'
+    type_name = "string"
 
     def __init__(self, name: str, description: str):
         self.name = name
@@ -83,7 +81,8 @@ class Field:
         # (eg. Does this join other tables that aren't 1:1 with datasets.)
         self.affects_row_selection = False
 
-        assert self.type_name in _AVAILABLE_TYPE_NAMES, "Invalid type name %r" % (self.type_name,)
+        if self.type_name not in _AVAILABLE_TYPE_NAMES:
+            raise ValueError(f"Invalid type name {self.type_name!r}")
 
     def __eq__(self, value) -> Expression:  # type: ignore
         """
@@ -91,22 +90,17 @@ class Field:
 
         this returns an Expression object (hence type ignore above)
         """
-        raise NotImplementedError('equals expression')
+        raise NotImplementedError("equals expression")
 
     def between(self, low, high) -> Expression:
         """
         Is this field in a range?
         """
-        raise NotImplementedError('between expression')
+        raise NotImplementedError("between expression")
 
 
 class SimpleField(Field):
-    def __init__(self,
-                 offset,
-                 converter,
-                 type_name,
-                 name='',
-                 description=''):
+    def __init__(self, offset, converter, type_name, name="", description=""):
         self.offset = offset
         self._converter = converter
         self.type_name = type_name
@@ -123,13 +117,9 @@ class SimpleField(Field):
 
 
 class RangeField(Field):
-    def __init__(self,
-                 min_offset,
-                 max_offset,
-                 base_converter,
-                 type_name,
-                 name='',
-                 description=''):
+    def __init__(
+        self, min_offset, max_offset, base_converter, type_name, name="", description=""
+    ):
         self.type_name = type_name
         self._converter = base_converter
         self.min_offset = min_offset
@@ -156,44 +146,50 @@ class RangeField(Field):
         return Range(v_min, v_max)
 
 
-def parse_search_field(doc, name=''):
-    _type = doc.get('type', 'string')
+def parse_search_field(doc, name=""):
+    _type = doc.get("type", "string")
 
     if _type in _TYPE_PARSERS:
-        offset = doc.get('offset', None)
+        offset = doc.get("offset", None)
         if offset is None:
-            raise ValueError('Missing offset')
+            raise ValueError("Missing offset")
 
-        return SimpleField(offset,
-                           _TYPE_PARSERS[_type],
-                           _type,
-                           name=name,
-                           description=doc.get('description', ''))
+        return SimpleField(
+            offset,
+            _TYPE_PARSERS[_type],
+            _type,
+            name=name,
+            description=doc.get("description", ""),
+        )
 
-    if not _type.endswith('-range'):
-        raise ValueError('Unsupported search field type: ' + str(_type))
+    if not _type.endswith("-range"):
+        raise ValueError("Unsupported search field type: " + str(_type))
 
-    raw_type = _type.split('-')[0]
+    raw_type = _type.split("-")[0]
 
-    if raw_type == 'float':  # float-range is supposed to be supported, but not just float?
-        raw_type = 'numeric'
-        _type = 'numeric-range'
+    if (
+        raw_type == "float"
+    ):  # float-range is supposed to be supported, but not just float?
+        raw_type = "numeric"
+        _type = "numeric-range"
 
     if raw_type not in _TYPE_PARSERS:
-        raise ValueError('Unsupported search field type: ' + str(_type))
+        raise ValueError("Unsupported search field type: " + str(_type))
 
-    min_offset = doc.get('min_offset', None)
-    max_offset = doc.get('max_offset', None)
+    min_offset = doc.get("min_offset", None)
+    max_offset = doc.get("max_offset", None)
 
     if min_offset is None or max_offset is None:
-        raise ValueError('Need to specify both min_offset and max_offset')
+        raise ValueError("Need to specify both min_offset and max_offset")
 
-    return RangeField(min_offset,
-                      max_offset,
-                      _TYPE_PARSERS[raw_type],
-                      _type,
-                      name=name,
-                      description=doc.get('description', ''))
+    return RangeField(
+        min_offset,
+        max_offset,
+        _TYPE_PARSERS[raw_type],
+        _type,
+        name=name,
+        description=doc.get("description", ""),
+    )
 
 
 def get_search_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
@@ -201,30 +197,30 @@ def get_search_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field
     implementation.
 
     """
-    fields = toolz.get_in(['dataset', 'search_fields'], metadata_definition, {})
+    fields = toolz.get_in(["dataset", "search_fields"], metadata_definition, {})
     return {n: parse_search_field(doc, name=n) for n, doc in fields.items()}
 
 
-def parse_offset_field(name='', offset=[]):
+def parse_offset_field(name="", offset=[]):
     field_types = {
-        'id': 'string',
-        'label': 'string',
-        'format': 'string',
-        'sources': 'object',
-        'creation_dt': 'datetime',
-        'grid_spatial': 'object',
-        'measurements': 'object',
+        "id": "string",
+        "label": "string",
+        "format": "string",
+        "sources": "object",
+        "creation_dt": "datetime",
+        "grid_spatial": "object",
+        "measurements": "object",
     }
 
     if name in field_types:
         _type = field_types[name]
-        return SimpleField(offset,
-                           _TYPE_PARSERS[_type],
-                           _type,
-                           name=name)
+        return SimpleField(offset, _TYPE_PARSERS[_type], _type, name=name)
 
 
 def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
-    fields = metadata_definition.get('dataset')
-    return {name: parse_offset_field(name, offset) for name, offset in fields.items()
-            if name != "search_fields"}
+    fields = metadata_definition.get("dataset")
+    return {
+        name: parse_offset_field(name, offset)
+        for name, offset in fields.items()
+        if name != "search_fields"
+    }
