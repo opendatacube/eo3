@@ -15,17 +15,11 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 from uuid import UUID
 
-import dateutil.parser
-import yaml
-
-try:
-    from yaml import CSafeLoader as SafeLoader  # type: ignore
-except ImportError:
-    from yaml import SafeLoader  # type: ignore
-
 import ciso8601
 import click
+import dateutil.parser
 import numpy
+from ruamel.yaml import YAML, YAMLError
 
 from eo3.uris import as_url, mk_part_uri
 
@@ -201,32 +195,6 @@ def _open_with_urllib(url):
 
 
 # CORE TODO: from datacube.utils.documents
-class NoDatesSafeLoader(SafeLoader):  # pylint: disable=too-many-ancestors
-    @classmethod
-    def remove_implicit_resolver(cls, tag_to_remove):
-        """
-        Removes implicit resolvers for a particular tag
-
-        Takes care not to modify resolvers in super classes.
-
-        We want to load datetimes as strings, not dates. We go on to
-        serialise as json which doesn't have the advanced types of
-        yaml, and leads to slightly different objects down the track.
-        """
-        if "yaml_implicit_resolvers" not in cls.__dict__:
-            cls.yaml_implicit_resolvers = cls.yaml_implicit_resolvers.copy()
-
-        for first_letter, mappings in cls.yaml_implicit_resolvers.items():
-            cls.yaml_implicit_resolvers[first_letter] = [
-                (tag, regexp) for tag, regexp in mappings if tag != tag_to_remove
-            ]
-
-
-# CORE TODO: from datacube.utils.documents
-NoDatesSafeLoader.remove_implicit_resolver("tag:yaml.org,2002:timestamp")
-
-
-# CORE TODO: from datacube.utils.documents
 _PROTOCOL_OPENERS = {
     "s3": _open_from_s3,
     "ftp": _open_with_urllib,
@@ -237,9 +205,8 @@ _PROTOCOL_OPENERS = {
 
 
 # CORE TODO: from datacube.utils.documents
-def load_from_yaml(handle, parse_dates=False):
-    loader = SafeLoader if parse_dates else NoDatesSafeLoader
-    yield from yaml.load_all(handle, Loader=loader)  # noqa: DUO109
+def load_from_yaml(handle):
+    yield from YAML(typ="safe").load_all(handle)  # noqa: DUO109
 
 
 # CORE TODO: from datacube.utils.documents
@@ -423,10 +390,15 @@ def read_documents(*paths, uri=False):
             yield from process_file(path)
         except InvalidDocException as e:
             raise e
-        except (yaml.YAMLError, ValueError) as e:
+        except (YAMLError, ValueError) as e:
             raise InvalidDocException(f"Failed to load {path}: {e}")
         except Exception as e:
             raise InvalidDocException(f"Failed to load {path}: {e}")
+
+
+def read_file(p: Path):
+    """Shorthand for when you just need to get the dict representation of 1 file"""
+    return next(iter(read_documents(p)))[1]
 
 
 # CORE TODO: from datacube.utils.changes

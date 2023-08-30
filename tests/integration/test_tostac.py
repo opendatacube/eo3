@@ -7,6 +7,8 @@ import pytest
 
 from eo3 import serialise
 from eo3.scripts import tostac
+from eo3.utils import read_file
+from eo3.validate import InvalidDatasetError
 
 from tests.common import assert_same, run_prepare_cli
 
@@ -46,33 +48,6 @@ def test_tostac(odc_dataset_path: Path, expected_stac_doc: Dict):
     assert_same(expected_stac_doc, output_doc)
 
 
-def test_tostac_no_grids(odc_dataset_path: Path, expected_stac_doc: Dict):
-    """
-    Converted EO1 datasets don't have grid information. Make sure it still outputs
-    without falling over.
-    """
-
-    # Remove grids from the input....
-    dataset = serialise.from_path(odc_dataset_path)
-    dataset.grids = None
-    serialise.to_path(odc_dataset_path, dataset)
-
-    run_tostac(odc_dataset_path)
-    expected_output_path = odc_dataset_path.with_name(
-        odc_dataset_path.name.replace(".odc-metadata.yaml", ".stac-item.json")
-    )
-
-    # No longer expect proj  fields (they come from grids).
-    remove_stac_properties(
-        expected_stac_doc, ("proj:shape", "proj:transform", "proj:epsg")
-    )
-    # But we do still expect a global CRS.
-    expected_stac_doc["properties"]["proj:epsg"] = 32656
-
-    output_doc = json.load(expected_output_path.open())
-    assert_same(expected_stac_doc, output_doc)
-
-
 def remove_stac_properties(doc: Dict, remove_properties=()):
     """
     Remove the given fields from properties and assets.
@@ -92,7 +67,7 @@ def test_add_property(input_doc_folder: Path):
     input_metadata_path = input_doc_folder.joinpath(ODC_METADATA_FILE)
     assert input_metadata_path.exists()
 
-    input_doc = serialise.load_yaml(input_metadata_path)
+    input_doc = read_file(input_metadata_path)
     input_doc["properties"]["test"] = "testvalue"
 
     serialise.dump_yaml(input_metadata_path, input_doc)
@@ -112,30 +87,28 @@ def test_no_crs(input_doc_folder: Path):
     input_metadata_path = input_doc_folder.joinpath(ODC_METADATA_FILE)
     assert input_metadata_path.exists()
 
-    input_doc = serialise.load_yaml(input_metadata_path)
+    input_doc = read_file(input_metadata_path)
     del input_doc["crs"]
 
     serialise.dump_yaml(input_metadata_path, input_doc)
     assert input_metadata_path.exists()
 
-    with pytest.raises(RuntimeError) as exp:
+    with pytest.raises(InvalidDatasetError, match="incomplete_geometry"):
         run_tostac(input_metadata_path)
-    assert "Unexpected input encountered" in str(exp.value)
 
 
 def test_invalid_crs(input_doc_folder: Path):
     input_metadata_path = input_doc_folder.joinpath(ODC_METADATA_FILE)
     assert input_metadata_path.exists()
 
-    input_doc = serialise.load_yaml(input_metadata_path)
+    input_doc = read_file(input_metadata_path)
     input_doc["crs"] = "I-CANT-BELIEVE-ITS-NOT-A-VALID-CRS:4236"
 
     serialise.dump_yaml(input_metadata_path, input_doc)
     assert input_metadata_path.exists()
 
-    with pytest.raises(RuntimeError) as exp:
+    with pytest.raises(InvalidDatasetError, match="invalid_crs"):
         run_tostac(input_metadata_path)
-    assert "Invalid projection" in str(exp.value)
 
 
 def run_tostac(input_metadata_path: Path):

@@ -6,7 +6,7 @@ import numpy as np
 from odc.geo import CRS
 from pyproj.exceptions import CRSError
 
-from eo3 import serialise
+from eo3 import schema
 from eo3.utils import _is_nan
 from eo3.validation_msg import ValidationMessage, ValidationMessages
 
@@ -18,7 +18,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
 
     # Validate it against ODC's product schema.
     has_doc_errors = False
-    for error in serialise.PRODUCT_SCHEMA.iter_errors(doc):
+    for error in schema.PRODUCT_SCHEMA.iter_errors(doc):
         has_doc_errors = True
         displayable_path = ".".join(map(str, error.absolute_path))
         context = f"({displayable_path}) " if displayable_path else ""

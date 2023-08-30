@@ -12,10 +12,17 @@ import click
 from click import echo, style
 
 import eo3.stac as eo3stac
-from eo3 import serialise
-from eo3.model import DatasetDocBase
-from eo3.ui import PathPath
+from eo3.model import DatasetMetadata
+from eo3.uris import normalise_path
 from eo3.utils import jsonify_document
+
+
+class PathPath(click.Path):
+    """
+    A Click argument that returns a normalised (absolute) pathlib Path"""
+
+    def convert(self, value, param, ctx):
+        return Path(normalise_path(super().convert(value, param, ctx)))
 
 
 @click.command(help=__doc__)
@@ -40,7 +47,7 @@ def run(
     validate: bool,
 ):
     for input_metadata in odc_metadata_files:
-        dataset = serialise.from_path(input_metadata)
+        dataset = DatasetMetadata.from_path(input_metadata)
 
         name = input_metadata.stem.replace(".odc-metadata", "")
         output_path = input_metadata.with_name(f"{name}.stac-item.json")
@@ -66,7 +73,7 @@ def run(
 
 
 def dc_to_stac(
-    dataset: DatasetDocBase,
+    dataset: DatasetMetadata,
     input_metadata: Path,
     output_path: Path,
     stac_base_url: str,

@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Dict
 
 from eo3.product.validate import validate_product
@@ -49,7 +48,7 @@ def test_managed_deprecation(product: Dict, metadata_type: Dict):
     assert "ingested_product" in msgs.warning_text()
 
 
-def test_warn_bad_product_license(l1_ls8_metadata_path: Path, product: Dict):
+def test_warn_bad_product_license(product: Dict):
     # Missing license is a warning.
     del product["license"]
     msgs = MessageCatcher(validate_product(product))

@@ -1,25 +1,48 @@
 import warnings
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple, Union
+from typing import Mapping, Optional
 
-import affine
 import attr
 import toolz
-from odc.geo import CoordList, Geometry, SomeCRS
+from odc.geo import CRS, Geometry
 from odc.geo.geom import polygon
+from pyproj.exceptions import CRSError
+from ruamel.yaml.timestamp import TimeStamp as RuamelTimeStamp
 
 from eo3 import validate
-from eo3.eo3_core import prep_eo3
-from eo3.fields import Range, get_search_fields, get_system_fields
-from eo3.utils import read_documents
+from eo3.eo3_core import EO3Grid, prep_eo3
+from eo3.fields import Range, all_field_offsets, get_search_fields, get_system_fields
+from eo3.metadata.validate import validate_metadata_type
+from eo3.utils import default_utc, parse_time, read_file
 from eo3.validation_msg import ContextualMessager, ValidationMessages
 
 DEA_URI_PREFIX = "https://collections.dea.ga.gov.au"
-ODC_DATASET_SCHEMA_URL = "https://schemas.opendatacube.org/dataset"
+DEFAULT_METADATA_TYPE = read_file(
+    Path(__file__).parent / "metadata" / "default-eo3-type.yaml"
+)
 
-# Either a local filesystem path or a string URI.
-# (the URI can use any scheme supported by rasterio, such as tar:// or https:// or ...)
-Location = Union[Path, str]
+
+def datetime_type(value):
+    # Ruamel's TimeZone class can become invalid from the .replace(utc) call.
+    # (I think it no longer matches the internal ._yaml fields.)
+    # Convert to a regular datetime.
+    if isinstance(value, RuamelTimeStamp):
+        value = value.isoformat()
+    else:
+        value = parse_time(value)
+
+    # Store all dates with a timezone.
+    # yaml standard says all dates default to UTC.
+    # (and ruamel normalises timezones to UTC itself)
+    return default_utc(value)
+
+
+BASE_NORMALISERS = {
+    "datetime": datetime_type,
+    "dtr:end_datetime": datetime_type,
+    "dtr:start_datetime": datetime_type,
+    "odc:processing_datetime": datetime_type,
+}
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -36,29 +59,29 @@ class ProductDoc:
     href: str = None
 
 
-@attr.s(auto_attribs=True, slots=True, hash=True)
-class GridDoc:
-    """The grid describing a measurement/band's pixels"""
+# @attr.s(auto_attribs=True, slots=True, hash=True)
+# class GridDoc:
+#     """The grid describing a measurement/band's pixels"""
 
-    shape: Tuple[int, int]
-    transform: affine.Affine
-    crs: Optional[str] = None
+#     shape: Tuple[int, int]
+#     transform: affine.Affine
+#     crs: Optional[str] = None
 
-    def points(self, ring: bool = False) -> CoordList:
-        ny, nx = (float(dim) for dim in self.shape)
-        pts = [(0.0, 0.0), (nx, 0.0), (nx, ny), (0.0, ny)]
-        if ring:
-            pts += pts[:1]
-        return [self.transform * pt for pt in pts]
+#     def points(self, ring: bool = False) -> CoordList:
+#         ny, nx = (float(dim) for dim in self.shape)
+#         pts = [(0.0, 0.0), (nx, 0.0), (nx, ny), (0.0, ny)]
+#         if ring:
+#             pts += pts[:1]
+#         return [self.transform * pt for pt in pts]
 
-    def ref_points(self) -> Dict[str, Dict[str, float]]:
-        nn = ["ul", "ur", "lr", "ll"]
-        return {n: dict(x=x, y=y) for n, (x, y) in zip(nn, self.points())}
+#     def ref_points(self) -> Dict[str, Dict[str, float]]:
+#         nn = ["ul", "ur", "lr", "ll"]
+#         return {n: dict(x=x, y=y) for n, (x, y) in zip(nn, self.points())}
 
-    def polygon(self, crs: Optional[SomeCRS] = None) -> Geometry:
-        if not crs:
-            crs = self.crs
-        return polygon(self.points(ring=True), crs=crs)
+#     def polygon(self, crs: Optional[SomeCRS] = None) -> Geometry:
+#         if not crs:
+#             crs = self.crs
+#         return polygon(self.points(ring=True), crs=crs)
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -94,17 +117,23 @@ class DatasetMetadata:
     def __init__(
         self,
         raw_dict,
-        mdt_definition: Mapping = None,
-        normalisation_mapping=None,
-        legacy_lineage=False,
+        mdt_definition: Mapping = DEFAULT_METADATA_TYPE,
+        normalisers: Mapping = BASE_NORMALISERS,
+        legacy_lineage=True,
     ):
-        self.__dict__["_doc"] = prep_eo3(raw_dict, remap_lineage=legacy_lineage)
-
-        if mdt_definition is None:
-            # placeholder path
-            mdt_definition = read_documents(
-                Path(__file__).parent / "metadata" / "default-eo3-type.yaml"
+        try:
+            self.__dict__["_doc"] = prep_eo3(raw_dict, remap_lineage=legacy_lineage)
+        except CRSError:
+            raise validate.InvalidDatasetError(
+                f"invalid_crs: CRS {raw_dict.get('crs')} is not a valid CRS"
             )
+        except ValueError as e:
+            raise validate.InvalidDatasetError(f"incomplete_geometry: {e}")
+
+        self.__dict__["_normalisers"] = normalisers
+        for key, val in self._doc["properties"].items():
+            self._doc["properties"][key] = self.normalise(key, val)
+
         self.__dict__["_mdt_definition"] = mdt_definition
 
         # The user-configurable search fields for this dataset type.
@@ -117,16 +146,15 @@ class DatasetMetadata:
             name: field for name, field in get_system_fields(mdt_definition).items()
         }
 
-        self.__dict__["_normalisation_mapping"] = normalisation_mapping
+        self.__dict__["_all_offsets"] = all_field_offsets(mdt_definition)
 
         self.__dict__["_msg"] = ContextualMessager(
             {
-                "product": self._doc.get("product").get("name"),
                 "type": mdt_definition.get("name"),
             }
         )
 
-        self.validate_base()
+        validate.handle_validation_messages(self.validate_base())
 
     def __getattr__(self, name):
         if name in self.fields.keys():
@@ -139,42 +167,56 @@ class DatasetMetadata:
             )
 
     def __setattr__(self, name, val):
-        offset = self.all_offsets.get(name)
+        offset = self._all_offsets.get(name)
         if offset is None:
+            # check for a @property.setter first
+            if hasattr(self, name):
+                super().__setattr__(name, val)
+                return
             raise AttributeError(
                 "Unknown field offset {!r}. Expected one of {!r}".format(
-                    name, list(self.all_offsets.keys())
+                    name, list(self._all_offsets.keys())
                 )
             )
-        if self._normalisation_mapping:
-            val = self.normalise(name, val)
-        # handle if there are multiple offsets
-        if isinstance(offset[0], list):
+
+        def _set_range_offset(name, val, offset, doc):
+            """Helper function for updating a field that expects a range"""
             is_range = isinstance(val, Range)
             # time can be a range or a single datetime
             if name == "time":
                 if is_range:
-                    self._doc = toolz.assoc_in(
-                        self._doc, ["properties", "dtr:start_datetime"], val.begin
+                    doc = toolz.assoc_in(
+                        doc,
+                        ["properties", "dtr:start_datetime"],
+                        self.normalise("dtr:start_datetime", val.begin),
                     )
-                    self._doc = toolz.assoc_in(
-                        self._doc, ["properties", "dtr:end_datetime"], val.end
+                    doc = toolz.assoc_in(
+                        doc,
+                        ["properties", "dtr:end_datetime"],
+                        self.normalise("dtr:end_datetime", val.end),
                     )
                 else:
-                    self._doc = toolz.assoc_in(
-                        self._doc, ["properties", "datetime"], val
+                    doc = toolz.assoc_in(
+                        doc, ["properties", "datetime"], self.normalise("datetime", val)
                     )
             # for all other range fields, value must be range
             else:
                 if not is_range:
-                    raise TypeError("Field must be a range")
+                    raise TypeError(f"The {name} field expects a Range value")
                 # this assumes that offsets are in min, max order
                 # and that there aren't multiple possible offsets for each
-                self._doc = toolz.assoc_in(self._doc, offset[0], val.begin)
-                self._doc = toolz.assoc_in(self._doc, offset[1], val.end)
+                doc = toolz.assoc_in(
+                    doc, offset[0], self.normalise(offset[0], val.begin)
+                )
+                doc = toolz.assoc_in(doc, offset[1], self.normalise(offset[0], val.end))
+            return doc
+
+        # handle if there are multiple offsets
+        if len(offset) > 1:
+            self._doc = _set_range_offset(name, val, offset, self._doc)
         # otherwise it's a simple field
         else:
-            self._doc = toolz.assoc_in(self._doc, offset, val)
+            self._doc = toolz.assoc_in(self._doc, *offset, self.normalise(*offset, val))
 
     def __dir__(self):
         return list(self.fields)
@@ -182,12 +224,6 @@ class DatasetMetadata:
     @property
     def doc(self):
         return self._doc
-
-    @property
-    def all_offsets(self):
-        # all offset paths as defined by the metadata type
-        all_fields = dict(**self._search_fields, **self._system_offsets)
-        return {name: field.offset for name, field in all_fields.items()}
 
     @property
     def search_fields(self):
@@ -209,6 +245,23 @@ class DatasetMetadata:
     @property
     def properties(self):
         return self.doc.get("properties")
+
+    @property
+    def metadata_type(self):
+        return self._mdt_definition
+
+    @metadata_type.setter
+    def metadata_type(self, val: Mapping):
+        validate.handle_validation_messages(validate_metadata_type(val))
+        self._mdt_definition = val
+        self._search_fields = {
+            name: field for name, field in get_search_fields(val).items()
+        }
+        self._system_offsets = {
+            name: field for name, field in get_system_fields(val).items()
+        }
+        self._all_offsets = all_field_offsets(val)
+        self._msg.context["type"] = val.get("name")
 
     # Additional metadata not included in the metadata type
     @property
@@ -232,120 +285,96 @@ class DatasetMetadata:
 
     @property
     def grids(self):
-        return {key: GridDoc(**doc) for key, doc in self.doc.get("grids")}
+        return {key: EO3Grid(doc) for key, doc in self.doc.get("grids").items()}
 
     @property
     def measurements(self):
-        return {key: MeasurementDoc(**doc) for key, doc in self.doc.get("measurements")}
+        return {
+            key: MeasurementDoc(**doc)
+            for key, doc in self.doc.get("measurements").items()
+        }
 
     @property
     def accessories(self):
-        return {key: AccessoryDoc(**doc) for key, doc in self.doc.get("accessories")}
-
-    # Additional properties not included in the search fields
-    @property
-    def constellation(self) -> str:
-        """
-        Constellation. Eg ``sentinel-2``.
-        """
-        return self.properties.get("eo:constellation")
-
-    @constellation.setter
-    def constellation(self, value: str):
-        self.properties["eo:constellation"] = value
+        return {
+            key: AccessoryDoc(**doc) for key, doc in self.doc.get("accessories").items()
+        }
 
     @property
-    def producer(self) -> str:
-        """
-        Organisation that produced the data.
+    def crs(self) -> str:
+        return CRS(self._doc.get("crs"))
 
-        eg. ``usgs.gov`` or ``ga.gov.au``
-
-        Shorthand for ``odc:producer`` property
-        """
-        return self.properties.get("odc:producer")
-
-    @producer.setter
-    def producer(self, domain: str):
-        self.properties["odc:producer"] = domain
-
+    # Core TODO: copied from datacube.model.Dataset
     @property
-    def dataset_version(self) -> str:
-        """
-        The version of the dataset.
+    def extent(self):
+        def xytuple(obj):
+            return obj["x"], obj["y"]
 
-        Typically digits separated by a dot. Eg. `1.0.0`
+        projection = self.grid_spatial
+        valid_data = projection.get("valid_data")
+        geo_ref_points = projection.get("geo_ref_points")
+        if valid_data:
+            return Geometry(valid_data, crs=self.crs)
+        elif geo_ref_points:
+            return polygon(
+                [
+                    xytuple(geo_ref_points[key])
+                    for key in ("ll", "ul", "ur", "lr", "ll")
+                ],
+                crs=self.crs,
+            )
 
-        The first digit is usually the collection number for
-        this 'producer' organisation, such as USGS Collection 1 or
-        GA Collection 3.
-        """
-        return self.properties.get("odc:dataset_version")
-
-    @dataset_version.setter
-    def dataset_version(self, value):
-        self.properties["odc:dataset_version"] = value
-
-    @property
-    def collection_number(self) -> int:
-        """
-        The version of the collection.
-
-        Eg.::
-
-           metadata:
-             product_family: wofs
-             dataset_version: 1.6.0
-             collection_number: 3
-
-        """
-        return self.properties.get("odc:collection_number")
-
-    @collection_number.setter
-    def collection_number(self, value):
-        self.properties["odc:collection_number"] = value
-
-    @property
-    def product_maturity(self) -> str:
-        """
-        Classification: is this a 'provisional' or 'stable' release of the product?
-        """
-        return self.properties.get("dea:product_maturity")
-
-    @product_maturity.setter
-    def product_maturity(self, value):
-        self.properties["dea:product_maturity"] = value
+        return None
 
     # Validation and other methods
     def without_lineage(self):
-        return toolz.assoc(self.doc, "lineage", {})
+        return toolz.assoc(self._doc, "lineage", {})
 
-    def normalise(self, key, value):
-        if key not in self._normalisation_mapping:
-            warnings.warn(f"Unknown property {key!r}.")
-        normaliser = self._normalisation_mapping.get(key)
-        if normaliser and value is not None:
-            return normaliser(value)
+    def normalise(self, key, val):
+        # for easy dealing with offsets
+        if key[0] == "properties":
+            key = key[1]
+        normalise = self._normalisers.get(key, None)
+        if normalise:
+            return normalise(val)
+        return val
 
     def validate_to_product(self, product_definition: Mapping):
         self._msg.context["product"] = product_definition.get("name")
         yield from validate.validate_ds_to_product(
-            self.doc, product_definition, self._msg
+            self._doc, product_definition, self._msg
         )
 
     def validate_to_schema(self) -> ValidationMessages:
         # don't error if properties 'extent' or 'grid_spatial' are present
-        doc = toolz.dissoc(self.doc, "extent", "grid_spatial")
+        doc = toolz.dissoc(self._doc, "extent", "grid_spatial")
         yield from validate.validate_ds_to_schema(doc, self._msg)
 
     def validate_to_mdtype(self) -> ValidationMessages:
         yield from validate.validate_ds_to_metadata_type(
-            self.doc, self._mdt_definition, self._msg
+            self._doc, self._mdt_definition, self._msg
         )
 
-    def validate_base(self):
-        if self._normalisation_mapping:
-            for key, value in self.doc:
-                self.normalise(key, value)
-        validate.handle_validation_messages(self.validate_to_schema())
-        validate.handle_validation_messages(self.validate_to_mdtype())
+    def validate_measurements(self) -> ValidationMessages:
+        for name, measurement in self.measurements.items():
+            grid_name = measurement.grid
+            if grid_name != "default" or self.grids:
+                if grid_name not in self.grids:
+                    yield self._msg.error(
+                        "invalid_grid_ref",
+                        f"Measurement {name!r} refers to unknown grid {grid_name!r}",
+                    )
+            yield from validate.validate_measurement_path(
+                name, measurement.path, self._msg
+            )
+
+    def validate_base(self) -> ValidationMessages:
+        yield from self.validate_to_schema()
+        yield from self.validate_to_mdtype()
+        # measurements are not mandatory
+        if self.measurements:
+            yield from self.validate_measurements()
+
+    @classmethod
+    def from_path(cls, path):
+        return cls(read_file(path))

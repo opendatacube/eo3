@@ -22,12 +22,8 @@ class ValidationMessage:
     def __str__(self) -> str:
         hint = ""
         if self.hint:
-            hint = f" (Hint: {self.hint})"
-        if self.context:
-            context_str = ",".join(f"{k}: {v}" for k, v in self.context.items())
-            return f"{self.code} in [{context_str}]: {self.reason}{hint}"
-        else:
-            return f"{self.code}: {self.reason}{hint}"
+            hint = f"(Hint: {self.hint})"
+        return f"{self.code}: {self.reason} {hint}"
 
     @classmethod
     def info(
@@ -54,7 +50,7 @@ ValidationMessages = Generator[ValidationMessage, None, None]
 
 
 class ContextualMessager:
-    def __init__(self, context: dict):
+    def __init__(self, context: dict = {}):
         self.context = context
         self.errors = 0
 

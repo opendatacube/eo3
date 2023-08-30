@@ -5,12 +5,12 @@ This allows extraction of fields of interest from dataset metadata document.
 """
 import decimal
 from collections import namedtuple
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, List, Mapping
 
 import toolz  # type: ignore[import]
-from datacube.utils import parse_time
 
-# is this the best place to define this
+from eo3.utils import parse_time
+
 Range = namedtuple("Range", ("begin", "end"))
 
 # Allowed values for field 'type' (specified in a metadata type docuemnt)
@@ -124,14 +124,11 @@ class RangeField(Field):
         self._converter = base_converter
         self.min_offset = min_offset
         self.max_offset = max_offset
-        # to be able to generically get a field's offset(s)
-        self.offset = [min_offset, max_offset]
         super().__init__(name, description)
 
     def extract(self, doc):
         def extract_raw(paths):
             vv = [toolz.get_in(p, doc, default=None) for p in paths]
-            # shouldn't it stop at the first path that works?
             return [self._converter(v) for v in vv if v is not None]
 
         v_min = extract_raw(self.min_offset)
@@ -223,4 +220,23 @@ def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field
         name: parse_offset_field(name, offset)
         for name, offset in fields.items()
         if name != "search_fields"
+    }
+
+
+def all_field_offsets(metadata_definition: Mapping[str, Any]) -> Dict[str, List[Any]]:
+    """Get a mapping of all field names -> offset"""
+    search_fields = {
+        name: field for name, field in get_search_fields(metadata_definition).items()
+    }
+    system_offsets = {
+        name: field for name, field in get_system_fields(metadata_definition).items()
+    }
+    all_fields = dict(**system_offsets, **search_fields)
+    return {
+        name: (
+            [field.offset]
+            if hasattr(field, "offset")
+            else field.min_offset + field.max_offset
+        )
+        for name, field in all_fields.items()
     }

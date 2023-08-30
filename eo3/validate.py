@@ -5,16 +5,25 @@ import warnings
 from textwrap import indent
 from typing import Dict, Iterable, List, Mapping, Set, Tuple
 
-from eo3 import serialise, utils
+import toolz
+
+from eo3 import schema, utils
+from eo3.fields import all_field_offsets
+from eo3.uris import get_part, is_absolute
 from eo3.utils import contains
 from eo3.validation_msg import ContextualMessager, Level, ValidationMessages
 
 
-def validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMessages:
+def validate_ds_to_schema(
+    doc: Dict, msg: ContextualMessager = None
+) -> ValidationMessages:
     """
     Validate against eo3 schema
     """
-    for error in serialise.DATASET_SCHEMA.iter_errors(doc):
+    if msg is None:
+        msg = ContextualMessager()
+
+    for error in schema.DATASET_SCHEMA.iter_errors(doc):
         displayable_path = ".".join(error.absolute_path)
 
         hint = None
@@ -24,12 +33,23 @@ def validate_ds_to_schema(doc: Dict, msg: ContextualMessager) -> ValidationMessa
         context = f"({displayable_path}) " if displayable_path else ""
         yield msg.error("structure", f"{context}{error.message} ", hint=hint)
 
+    # properties detailed in the schema that are optional but recommended
+    recommended = [["product", "href"], ["properties", "dea:dataset_maturity"]]
+    for r in recommended:
+        if toolz.get_in(r, doc) is None:
+            yield msg.warning(
+                "recommended_field", f"Field {'->'.join(r)} is optional but recommended"
+            )
+
 
 def validate_ds_to_product(
     doc: Dict,
     product_definition: Mapping,
-    msg: ContextualMessager,
+    msg: ContextualMessager = None,
 ):
+    if msg is None:
+        msg = ContextualMessager({"product": product_definition.get("name")})
+
     product_name = msg.context.get("product")
     ds_product_name = doc.get("product").get("name")
     if product_name and product_name != ds_product_name:
@@ -46,7 +66,7 @@ def validate_ds_to_product(
         difference_hint = _differences_as_hint(diffs)
         yield msg.error(
             "metadata_mismatch",
-            "Dataset template does not match product document template.",
+            f"Dataset template does not match product document template for product {product_name!r}.",
             hint=difference_hint,
         )
 
@@ -72,17 +92,15 @@ def validate_ds_to_product(
         )
 
 
-# this checks that all mdtype fields are in dataset (which they don't necessarily need to be)
-# but doesn't check for ds fields that are not in mdtype (which would be more problematic)
-# consider removing altogether
 def validate_ds_to_metadata_type(
     doc: Dict,
     metadata_type_definition: Dict,
-    msg: ContextualMessager,
+    msg: ContextualMessager = None,
 ):
-    for field_name, offsets in _get_field_offsets(
-        metadata_type=metadata_type_definition
-    ):
+    if msg is None:
+        msg = ContextualMessager()
+
+    for field_name, offsets in _get_field_offsets(metadata_type_definition):
         # If none of a field's offsets are in the document - ignore for lineage
         if field_name != "sources" and not any(
             _has_offset(doc, offset) for offset in offsets
@@ -92,21 +110,52 @@ def validate_ds_to_metadata_type(
             yield msg.warning(
                 "missing_field",
                 f"Dataset is missing field {field_name!r} "
-                f"for type {metadata_type_definition['name']!r}",
-                hint=f"Expected at {readable_offsets}",
+                f"expected by metadata type {metadata_type_definition['name']!r}",
+                hint=f"Expected at offset {readable_offsets}",
             )
             continue
+
+
+def validate_measurement_path(
+    name, path, msg: ContextualMessager = None
+) -> ValidationMessages:
+    if msg is None:
+        msg = ContextualMessager()
+
+    if is_absolute(path):
+        yield msg.warning(
+            "absolute_path",
+            f"measurement {name!r} has an absolute path: {path!r}",
+        )
+
+    part = get_part(path)
+    if part is not None:
+        yield msg.warning(
+            "uri_part",
+            f"measurement {name!r} has a part in the path. (Use band and/or layer instead)",
+        )
+    if isinstance(part, int):
+        if part < 0:
+            yield msg.error(
+                "uri_invalid_part",
+                f"measurement {name!r} has an invalid part (less than zero) in the path ({part})",
+            )
+    elif isinstance(part, str):
+        yield msg.error(
+            "uri_invalid_part",
+            f"measurement {name!r} has an invalid part (non-integer) in the path ({part})",
+        )
 
 
 def _has_offset(doc: Dict, offset: List[str]) -> bool:
     """
     Is the given offset present in the document?
     """
-    for key in offset:
-        if key not in doc:
-            return False
-        doc = doc[key]
-    return True
+    try:
+        toolz.get_in(offset, doc, no_default=True)
+        return True
+    except (KeyError, IndexError):
+        return False
 
 
 # Name of a field and its possible offsets in the document.
@@ -123,25 +172,7 @@ def _get_field_offsets(metadata_type: Dict) -> Iterable[FieldNameOffsets]:
     (Properties can have multiple offsets, where ODC will choose the first non-null one, hence the
     return of multiple offsets for each field.)
     """
-    dataset_section = metadata_type["dataset"]
-    search_fields = dataset_section["search_fields"]
-
-    # The fixed fields of ODC. 'id', 'label', etc.
-    for field_name in dataset_section:
-        if field_name != "search_fields":
-            offset = dataset_section[field_name]
-            if offset is not None:
-                yield field_name, [offset]
-
-    # The configurable search fields.
-    for field_name, spec in search_fields.items():
-        offsets = []
-        if "offset" in spec:
-            offsets.append(spec["offset"])
-        # offsets.extend(spec.get("min_offset", []))
-        # offsets.extend(spec.get("max_offset", []))
-
-        yield field_name, offsets
+    yield from all_field_offsets(metadata_type).items()
 
 
 def _get_printable_differences(dict1: Dict, dict2: Dict):
@@ -161,15 +192,14 @@ def _differences_as_hint(product_diffs):
     return indent("\n".join(product_diffs), prefix="\t")
 
 
-class IncompleteDatasetError(Exception):
+class InvalidDatasetError(Exception):
     """
-    Raised when a dataset is missing essential things and so cannot be written.
-
-    (such as mandatory metadata)
+    Raised when a dataset is missing essential things (such as mandatory metadata)
+    or contains invalid values and so cannot be written.
     """
 
 
-class IncompleteDatasetWarning(UserWarning):
+class InvalidDatasetWarning(UserWarning):
     """A non-critical warning for invalid or incomplete metadata"""
 
 
@@ -183,6 +213,6 @@ def handle_validation_messages(messages: ValidationMessages):
         if msg.level == Level.error:
             errors.append(str(msg))
     if warns:
-        warnings.warn(IncompleteDatasetWarning("\n".join(warns)))
+        warnings.warn(InvalidDatasetWarning("\n".join(warns)))
     if errors:
-        raise IncompleteDatasetError("\n".join(errors))
+        raise InvalidDatasetError("\n".join(errors))

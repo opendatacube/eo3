@@ -1,6 +1,7 @@
 """ Tools for working with EO3 metadata
 """
 # TODO CORE: copied from datacube.index.eo3
+import warnings
 from functools import reduce
 from typing import Any, Dict, Iterable, Optional, Tuple, Union
 from uuid import UUID
@@ -16,7 +17,7 @@ from odc.geo.geom import (
     polygon,
 )
 
-from eo3.model import ODC_DATASET_SCHEMA_URL
+from eo3.schema import ODC_DATASET_SCHEMA_URL
 
 
 # This is should become eo3.models.GridDoc
@@ -28,6 +29,7 @@ class EO3Grid:
         if len(shape) != 2:
             raise ValueError("Grid shape must be two dimensional")
         self.shape: Tuple[int, int] = tuple(int(x) for x in shape)
+
         xform = grid.get("transform")
         if xform is None:
             raise ValueError("Each grid must have a transform")
@@ -35,10 +37,17 @@ class EO3Grid:
             raise ValueError("Grid transform must have 6 or 9 elements.")
         for elem in xform:
             if type(elem) not in (int, float):
-                raise ValueError("All grid transform elements must be numbers")
+                raise ValueError(
+                    f"All grid transform elements must be numbers, got {type(elem)}"
+                )
         if len(xform) == 9 and list(xform[6:]) != [0, 0, 1]:
             raise ValueError("Grid transform must be a valid Affine matrix")
         self.transform = Affine(*xform[:6])
+
+        crs = grid.get("crs")
+        if crs is not None:
+            check_crs_epsg(crs)
+        self.crs = crs
 
     def points(self, ring: bool = False) -> CoordList:
         ny, nx = (float(dim) for dim in self.shape)
@@ -52,6 +61,8 @@ class EO3Grid:
         return {n: dict(x=x, y=y) for n, (x, y) in zip(nn, self.points())}
 
     def polygon(self, crs: Optional[SomeCRS] = None) -> Geometry:
+        # use grid's own CRS if it was provided
+        crs = self.crs if self.crs is not None else crs
         return polygon(self.points(ring=True), crs=crs)
 
 
@@ -66,7 +77,11 @@ def eo3_lonlat_bbox(
         return lonlat_bounds(valid_data, resolution=resolution)
 
     all_grids_extent = reduce(
-        lambda x, y: x.union(y), (grid.polygon(crs) for grid in grids)
+        lambda x, y: x.union(y),
+        (
+            grid.polygon(grid.crs) if grid.crs is not None else grid.polygon(crs)
+            for grid in grids
+        ),
     )
     return lonlat_bounds(all_grids_extent, resolution=resolution)
 
@@ -119,6 +134,7 @@ def eo3_grid_spatial(
     crs = doc.get("crs", None)
     if crs is None or not gridspecs:
         raise ValueError("Input must have crs and grids.")
+    check_crs_epsg(crs)
     grids = {name: EO3Grid(grid_spec) for name, grid_spec in gridspecs.items()}
     grid = grids.get(grid_name)
     if not grid:
@@ -154,7 +170,10 @@ def eo3_grid_spatial(
 def add_eo3_parts(
     doc: Dict[str, Any], resolution: Optional[float] = None
 ) -> Dict[str, Any]:
-    """Add spatial keys the DB requires to eo3 metadata"""
+    """Add spatial keys the DB required by eo3 metadata"""
+    # don't attempt to recalculate gs info if it already exists
+    if doc.get("grid_spatial"):
+        return doc
     return dict(**doc, **eo3_grid_spatial(doc, resolution=resolution))
 
 
@@ -250,3 +269,12 @@ def prep_eo3(
 
         doc["lineage"] = dict(source_datasets=sources)
     return doc
+
+
+def check_crs_epsg(crs):
+    """Check if CRS is WKT when it could be provided as EPSG (preferred)"""
+    crs = CRS(crs)
+    if crs.epsg is not None and not str(crs).startswith("EPSG"):
+        warnings.warn(
+            f"Prefer an EPSG code to a WKT when possible. (Can change CRS to 'epsg:{crs.epsg}')"
+        )
