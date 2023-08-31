@@ -14,8 +14,6 @@ from eo3.aws import (
     _s3_cache_key,
     auto_find_region,
     ec2_current_region,
-    get_creds_with_retry,
-    obtain_new_iam_auth_token,
     s3_client,
     s3_fmt_range,
     s3_url_parse,
@@ -89,14 +87,6 @@ def test_fetch_text():
         assert _fetch_text("http://localhost:8817") is None
 
 
-def test_creds_with_retry():
-    session = mock.MagicMock()
-    session.get_credentials = mock.MagicMock(return_value=None)
-
-    assert get_creds_with_retry(session, 2, 0.01) is None
-    assert session.get_credentials.call_count == 2
-
-
 def test_s3_basics(without_aws_env):
     from botocore.credentials import ReadOnlyCredentials
     from numpy import s_
@@ -165,23 +155,3 @@ def test_s3_client_cache(monkeypatch, without_aws_env):
 
     keys = {_s3_cache_key(**o) for o in opts}
     assert len(keys) == len(opts)
-
-
-def test_obtain_new_iam_token(monkeypatch, without_aws_env):
-    import moto
-    from sqlalchemy.engine.url import URL
-
-    url = URL.create(
-        "postgresql",
-        host="fakehost",
-        database="fake_db",
-        port=5432,
-        username="fakeuser",
-        password="definitely_a_fake_password",
-    )
-
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "fake-key-id")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fake-secret")
-    with moto.mock_iam():
-        token = obtain_new_iam_auth_token(url, region_name="us-west-1")
-        assert isinstance(token, str)

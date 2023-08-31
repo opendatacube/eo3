@@ -3,15 +3,13 @@ Helper methods for working with AWS
 """
 import os
 import threading
-import time
-from types import SimpleNamespace
 from typing import Any, Dict, Optional, Tuple, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import botocore
 import botocore.session
-from botocore.credentials import Credentials, ReadOnlyCredentials
+from botocore.credentials import ReadOnlyCredentials
 from botocore.session import Session
 
 # TODO CORE: Copy of datacube.utils.generic.py
@@ -61,7 +59,6 @@ __all__ = (
     "ec2_current_region",
     "botocore_default_region",
     "auto_find_region",
-    "get_creds_with_retry",
     "mk_boto_session",
 )
 
@@ -166,26 +163,6 @@ def auto_find_region(
         raise ValueError("Region name is not supplied and default can not be found")
 
     return default
-
-
-def get_creds_with_retry(
-    session: Session, max_tries: int = 10, sleep: float = 0.1
-) -> Optional[Credentials]:
-    """Attempt to obtain credentials upto `max_tries` times with back off
-    :param session: botocore session, see mk_boto_session
-    :param max_tries: number of attempt before failing and returing None
-    :param sleep: number of seconds to sleep after first failure (doubles on every consecutive failure)
-    """
-    for i in range(max_tries):
-        if i > 0:
-            time.sleep(sleep)
-            sleep = min(sleep * 2, 10)
-
-        creds = session.get_credentials()
-        if creds is not None:
-            return creds
-
-    return None
 
 
 def mk_boto_session(
@@ -375,68 +352,3 @@ def s3_open(
     bucket, key = s3_url_parse(url)
     oo = s3.get_object(Bucket=bucket, Key=key, **kwargs)  # type: ignore[attr-defined]
     return oo["Body"]
-
-
-def s3_head_object(url: str, s3: MaybeS3 = None, **kwargs) -> Optional[Dict[str, Any]]:
-    """
-    Head object, return object metadata.
-
-    :param url: s3://bucket/path/to/object
-    :param s3: pre-configured s3 client, see make_s3_client()
-    :param kwargs: are passed on to ``s3.head_object(..)``
-    """
-    from botocore.exceptions import ClientError
-
-    s3 = s3 or s3_client()
-    bucket, key = s3_url_parse(url)
-
-    try:
-        oo = s3.head_object(Bucket=bucket, Key=key, **kwargs)  # type: ignore[attr-defined]
-    except ClientError:
-        return None
-
-    meta = oo.pop("ResponseMetadata", {})
-    code = meta.get("HTTPStatusCode", 0)
-    if 200 <= code < 300:
-        return oo
-
-    # it actually raises exceptions when http code is in the "fail" range
-    return None  # pragma: no cover
-
-
-def obtain_new_iam_auth_token(
-    url: str, region_name: str = "auto", profile_name: Optional[str] = None
-) -> str:
-    # Boto3 is not core requirement, but ImportError is probably the right exception to throw anyway.
-    from boto3.session import Session as Boto3Session
-
-    session = Boto3Session(profile_name=profile_name)
-    client = session.client("rds", region_name=region_name)
-    return client.generate_db_auth_token(
-        DBHostname=url.host, Port=url.port, DBUsername=url.username, Region=region_name
-    )
-
-
-# TODO CORE: Copy from datacube.utils.rio.rio
-_CFG_LOCK = threading.Lock()
-_CFG = SimpleNamespace(aws=None, cloud_defaults=False, kwargs={}, epoch=0)
-
-
-def set_default_rio_config(aws=None, cloud_defaults=False, **kwargs):
-    """Setup default configuration for rasterio/GDAL.
-
-    Doesn't actually activate one, just stores configuration for future
-    use from IO threads.
-
-    :param aws: Dictionary of options for rasterio.session.AWSSession
-                OR 'auto' -- session = rasterio.session.AWSSession()
-
-    :param cloud_defaults: When True inject settings for reading COGs
-    :param **kwargs: Passed on to rasterio.Env(..) constructor
-    """
-    global _CFG  # pylint: disable=global-statement
-
-    with _CFG_LOCK:
-        _CFG = SimpleNamespace(
-            aws=aws, cloud_defaults=cloud_defaults, kwargs=kwargs, epoch=_CFG.epoch + 1
-        )
