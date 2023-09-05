@@ -12,6 +12,7 @@ from eo3.validate import InvalidDatasetError
 
 
 def test_get_and_set(l1_ls8_folder_md_expected: Dict, metadata_type):
+    """Test that we are able to access and set fields correctly"""
     ds = DatasetMetadata(
         raw_dict=l1_ls8_folder_md_expected, mdt_definition=metadata_type
     )
@@ -38,6 +39,10 @@ def test_get_and_set(l1_ls8_folder_md_expected: Dict, metadata_type):
 
 
 def test_update_metadata_type(l1_ls8_folder_md_expected: Dict, metadata_type):
+    """
+    Test that updating the metadata type definition gives us access to custom fields
+    included in the new definition
+    """
     ds = DatasetMetadata(
         raw_dict=l1_ls8_folder_md_expected, mdt_definition=metadata_type
     )
@@ -56,20 +61,24 @@ def test_update_metadata_type(l1_ls8_folder_md_expected: Dict, metadata_type):
 
 
 def test_additional_metadata_access(l1_ls8_folder_md_expected: Dict, metadata_type):
+    """Check that we are able to access metadata not defined in the metadata type"""
     ds = DatasetMetadata(
         raw_dict=l1_ls8_folder_md_expected, mdt_definition=metadata_type
     )
     assert ds.crs.epsg == 32655
     assert ds.product.name == "usgs_ls8c_level1_1"
-    # test measurements, accessories
+    assert "coastal_aerosol" in ds.measurements
+    assert "metadata:landsat_mtl" in ds.accessories
+    assert ds.locations is None
 
 
 def test_bad_crs(example_metadata: Dict):
-    # Invalid or missing crs
+    """CRS should be valid, and is preferred in epsg form if possible"""
+    # Invalid crs
     example_metadata["crs"] = "123456"
     with pytest.raises(InvalidDatasetError, match="invalid_crs"):
         DatasetMetadata(example_metadata)
-
+    # Missing crs
     del example_metadata["crs"]
     with pytest.raises(InvalidDatasetError, match="incomplete_geometry"):
         DatasetMetadata(example_metadata)
@@ -105,6 +114,8 @@ def test_bad_crs(example_metadata: Dict):
 
 
 def test_extent(l1_ls8_folder_md_expected: Dict):
+    # Core TODO: copied from tests.test_eo3
+    """Check that extent is properly calculated"""
     ds = DatasetMetadata(l1_ls8_folder_md_expected)
     assert ds.extent is not None
     assert ds.extent.crs.epsg == 32655
@@ -116,10 +127,10 @@ def test_extent(l1_ls8_folder_md_expected: Dict):
     assert ds.extent.contains(ds2.extent)
 
 
-# passed
 def test_warn_location_deprecated(
     l1_ls8_folder_md_expected: Dict,
 ):
+    """Warn if dataset includes deprecated 'location' field"""
     l1_ls8_folder_md_expected["location"] = "file:///path/to"
     ds = DatasetMetadata(l1_ls8_folder_md_expected)
     with pytest.warns(UserWarning, match="`location` is deprecated"):

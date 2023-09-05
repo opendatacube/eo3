@@ -63,6 +63,8 @@ def test_invalid_eo3_schema(example_metadata: Dict):
 
 
 def test_dataset_maturity(example_metadata: Dict):
+    """Dataset maturity is an optional but recommended field; schema validation
+    should warn if it is absent and error if it is incorrect"""
     example_metadata["properties"]["dea:dataset_maturity"] = "blah"
     msgs = MessageCatcher(validate_ds_to_schema(example_metadata))
     assert msgs.errors()
@@ -109,6 +111,7 @@ def test_missing_grid_def(example_metadata: Dict):
 
 
 def test_absolute_path_in_measurement(example_metadata: Dict):
+    """Warn if a measurement path is absolute"""
     a_measurement, *_ = list(example_metadata["measurements"])
     example_metadata["measurements"][a_measurement][
         "path"
@@ -118,6 +121,9 @@ def test_absolute_path_in_measurement(example_metadata: Dict):
 
 
 def test_path_with_part_in_measurement(example_metadata: Dict):
+    """
+    Measurement paths should not include parts; warn if they are present and error if they are invalid
+    """
     a_measurement, *_ = list(example_metadata["measurements"])
     example_metadata["measurements"][a_measurement]["path"] += "#part=0"
     with pytest.warns(UserWarning, match="uri_part"):
@@ -179,6 +185,7 @@ def test_product_metadata_mismatch(
 
 
 def test_has_offset():
+    """_has_offset helper function for checking missing offsets"""
     doc = dict(spam="spam", bacon="eggs", atmosphere=dict(interruptions="vikings"))
     from eo3.validate import _has_offset
 
@@ -189,7 +196,7 @@ def test_has_offset():
 
 def test_get_field_offsets(metadata_type: Dict):
     """
-    Test the get_field_offsets function.
+    Test the get_field_offsets function, should return all field offsets defined by the metadata type
     """
     assert list(validate._get_field_offsets(metadata_type)) == [
         ("id", [["id"]]),
@@ -229,6 +236,10 @@ def test_validate_ds_to_metadata_type(
     metadata_type,
     l1_ls8_folder_md_expected: Dict,
 ):
+    """
+    Validator should allow a document that doesn't include all the metadata type fields,
+    but should warn about these missing fields
+    """
     metadata_type["dataset"]["search_fields"]["foobar"] = {
         "description": "A required property that is missing",
         "type": "string",

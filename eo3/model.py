@@ -59,31 +59,6 @@ class ProductDoc:
     href: str = None
 
 
-# @attr.s(auto_attribs=True, slots=True, hash=True)
-# class GridDoc:
-#     """The grid describing a measurement/band's pixels"""
-
-#     shape: Tuple[int, int]
-#     transform: affine.Affine
-#     crs: Optional[str] = None
-
-#     def points(self, ring: bool = False) -> CoordList:
-#         ny, nx = (float(dim) for dim in self.shape)
-#         pts = [(0.0, 0.0), (nx, 0.0), (nx, ny), (0.0, ny)]
-#         if ring:
-#             pts += pts[:1]
-#         return [self.transform * pt for pt in pts]
-
-#     def ref_points(self) -> Dict[str, Dict[str, float]]:
-#         nn = ["ul", "ur", "lr", "ll"]
-#         return {n: dict(x=x, y=y) for n, (x, y) in zip(nn, self.points())}
-
-#     def polygon(self, crs: Optional[SomeCRS] = None) -> Geometry:
-#         if not crs:
-#             crs = self.crs
-#         return polygon(self.points(ring=True), crs=crs)
-
-
 @attr.s(auto_attribs=True, slots=True)
 class MeasurementDoc:
     """
@@ -114,6 +89,29 @@ class AccessoryDoc:
 
 
 class DatasetMetadata:
+    """
+    A representation of an EO3 dataset document that allows for easy metadata access and validation.
+
+    :param raw_dict: The raw dictionary representation of the dataset. Can also provide a path to the raw
+    representation via the `from_path` class method.
+
+    :param mdt_definition: The metadata type definition dictionary. Dataset fields are accessed based on the offsets
+    defined in the metadata type definition. If no metadata type definition is provided, it will default to the simple
+    eo3 metadata type with no custom fields. It can be updated later using the `metadata_type` property
+
+    :param normalisers: A mapping of property normalisation functions, for any type or semantic normalisation that isn't
+    enforced by the dataset schema. By default it only normalisesdatetime strings to datetime.datetime objects
+    with a utc timezone if no timezone is specified
+
+    :param legacy_lineage: False if dataset uses external lineage
+
+    DatasetMetadata also allows access to the raw document, the raw properties dictionary, and dataset properties
+    not defined within the metadata type, such as locations, geometry, grids, measurements, accessories
+
+    Validation against the schema and the metadata type definition are conducted by default, as is geometry validation
+    via the call to `prep_eo3`, which adds/modifies metadata sections required for an eo3 dataset.
+    """
+
     def __init__(
         self,
         raw_dict,
@@ -302,6 +300,7 @@ class DatasetMetadata:
 
     @property
     def crs(self) -> str:
+        # get doc crs as an actual CRS
         return CRS(self._doc.get("crs"))
 
     # Core TODO: copied from datacube.model.Dataset
@@ -331,7 +330,9 @@ class DatasetMetadata:
         return toolz.assoc(self._doc, "lineage", {})
 
     def normalise(self, key, val):
-        # for easy dealing with offsets
+        """If property name is present in the normalisation mapping, apply the
+        normalisation function"""
+        # for easy dealing with offsets, such as when used in __setattr__
         if key[0] == "properties":
             key = key[1]
         normalise = self._normalisers.get(key, None)
@@ -340,6 +341,7 @@ class DatasetMetadata:
         return val
 
     def validate_to_product(self, product_definition: Mapping):
+        # Core TODO: replaces datacube.index.hl.check_dataset_consistent and check_consistent
         self._msg.context["product"] = product_definition.get("name")
         yield from validate.validate_ds_to_product(
             self._doc, product_definition, self._msg
@@ -356,6 +358,7 @@ class DatasetMetadata:
         )
 
     def validate_measurements(self) -> ValidationMessages:
+        """Check that measurement paths and grid references are valid"""
         for name, measurement in self.measurements.items():
             grid_name = measurement.grid
             if grid_name != "default" or self.grids:
@@ -369,6 +372,7 @@ class DatasetMetadata:
             )
 
     def validate_base(self) -> ValidationMessages:
+        """Basic validations that can be done with information present at initialisation"""
         yield from self.validate_to_schema()
         yield from self.validate_to_mdtype()
         # measurements are not mandatory
@@ -377,4 +381,5 @@ class DatasetMetadata:
 
     @classmethod
     def from_path(cls, path):
+        # Create DatasetMetadata from filepath
         return cls(read_file(path))
