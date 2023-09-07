@@ -7,6 +7,8 @@ from typing import Optional, Union
 from urllib.parse import parse_qsl, urljoin, urlparse
 from urllib.request import url2pathname
 
+# TODO: ideally this file would eventually be moved to a lower-level utils package
+
 # CORE TODO: forked from datacube.utils.uris
 
 
@@ -190,13 +192,13 @@ def is_absolute(url):
     return bool(location.scheme or location.netloc) or os.path.isabs(location.path)
 
 
-def get_part(url):
+def get_part_from_uri(url):
     """
-    >>> get_part('path/to/file.tif')
-    >>> get_part('path/to/file.tif#page=2')
-    >>> get_part('path/to/file.tif#part=3')
+    >>> get_part_from_uri('path/to/file.tif')
+    >>> get_part_from_uri('path/to/file.tif#page=2')
+    >>> get_part_from_uri('path/to/file.tif#part=3')
     3
-    >>> get_part('path/to/file.tif#part=one')
+    >>> get_part_from_uri('path/to/file.tif#part=one')
     'one'
     """
     opts = dict(parse_qsl(urlparse(url).fragment))

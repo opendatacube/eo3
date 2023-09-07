@@ -9,7 +9,7 @@ import toolz
 
 from eo3 import schema, utils
 from eo3.fields import all_field_offsets
-from eo3.uris import get_part, is_absolute
+from eo3.uris import get_part_from_uri, is_absolute
 from eo3.utils import contains
 from eo3.validation_msg import ContextualMessager, Level, ValidationMessages
 
@@ -133,7 +133,7 @@ def validate_measurement_path(
             f"measurement {name!r} has an absolute path: {path!r}",
         )
 
-    part = get_part(path)
+    part = get_part_from_uri(path)
     if part is not None:
         yield msg.warning(
             "uri_part",

@@ -92,8 +92,8 @@ class DatasetMetadata:
     """
     A representation of an EO3 dataset document that allows for easy metadata access and validation.
 
-    :param raw_dict: The raw dictionary representation of the dataset. Can also provide a path to the raw
-    representation via the `from_path` class method.
+    :param raw_dict: The document describing the dataset as a dictionary. Can also provide a path to the dictionary
+    file via the `from_path` class method.
 
     :param mdt_definition: The metadata type definition dictionary. Dataset fields are accessed based on the offsets
     defined in the metadata type definition. If no metadata type definition is provided, it will default to the simple

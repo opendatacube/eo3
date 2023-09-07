@@ -1,21 +1,12 @@
 from pathlib import Path
 
 import jsonschema
+import referencing
 
 from eo3.utils import read_file
 
-# from typing import Dict
 
-
-def _is_json_array(checker, instance) -> bool:
-    """
-    By default, jsonschema only allows a json array to be a Python list.
-    Let's allow it to be a tuple too.
-    """
-    return isinstance(instance, (list, tuple))
-
-
-def _load_schema_validator(p: Path) -> jsonschema.Draft6Validator:
+def _load_schema_validator(p: Path) -> jsonschema.Draft7Validator:
     """
     Create a schema instance for the file.
 
@@ -26,8 +17,6 @@ def _load_schema_validator(p: Path) -> jsonschema.Draft6Validator:
     if p.suffix.lower() not in (".yaml", ".yml"):
         raise ValueError(f"Unexpected file type {p.suffix}. Expected yaml")
     schema = read_file(p)
-    validator = jsonschema.validators.validator_for(schema)
-    validator.check_schema(schema)
 
     # Allow schemas to reference other schemas relatively
     def doc_reference(path):
@@ -35,15 +24,14 @@ def _load_schema_validator(p: Path) -> jsonschema.Draft6Validator:
         if not path.exists():
             raise ValueError(f"Reference not found: {path}")
         referenced_schema = read_file(path)
-        return referenced_schema
+        return referencing.Resource(referenced_schema, referencing.jsonschema.DRAFT7)
 
-    ref_resolver = jsonschema.RefResolver.from_schema(
-        schema, handlers={"": doc_reference}
-    )
-    custom_validator = jsonschema.validators.extend(
-        validator, type_checker=validator.TYPE_CHECKER.redefine("array", _is_json_array)
-    )
-    return custom_validator(schema, resolver=ref_resolver)
+    if p.parent:
+        registry = referencing.Registry(retrieve=doc_reference)
+    else:
+        registry = referencing.Registry()
+    jsonschema.Draft7Validator.check_schema(schema)
+    return jsonschema.Draft7Validator(schema, registry=registry)
 
 
 SCHEMAS_PATH = Path(__file__).parent

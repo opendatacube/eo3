@@ -190,10 +190,7 @@ def parse_search_field(doc, name=""):
 
 
 def get_search_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
-    """Construct search fields dictionary not tied to any specific db
-    implementation.
-
-    """
+    """Construct search fields dictionary not tied to any specific db implementation."""
     fields = toolz.get_in(["dataset", "search_fields"], metadata_definition, {})
     return {n: parse_search_field(doc, name=n) for n, doc in fields.items()}
 
@@ -215,6 +212,7 @@ def parse_offset_field(name="", offset=[]):
 
 
 def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+    """Construct system fields dictionary not tied to any specific db implementation."""
     fields = metadata_definition.get("dataset")
     return {
         name: parse_offset_field(name, offset)
@@ -223,15 +221,20 @@ def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field
     }
 
 
-def all_field_offsets(metadata_definition: Mapping[str, Any]) -> Dict[str, List[Any]]:
-    """Get a mapping of all field names -> offset"""
+def get_all_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+    """Construct dictionary of all fields"""
     search_fields = {
         name: field for name, field in get_search_fields(metadata_definition).items()
     }
     system_offsets = {
         name: field for name, field in get_system_fields(metadata_definition).items()
     }
-    all_fields = dict(**system_offsets, **search_fields)
+    return dict(**system_offsets, **search_fields)
+
+
+def all_field_offsets(metadata_definition: Mapping[str, Any]) -> Dict[str, List[Any]]:
+    """Get a mapping of all field names -> offset"""
+    all_fields = get_all_fields(metadata_definition)
     return {
         name: (
             [field.offset]

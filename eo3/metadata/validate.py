@@ -78,7 +78,6 @@ legacy_fields = {
 }
 
 
-# CORE TODO: from datacube.model.eo3
 def validate_eo3_sharefield_offset(
     field_name: str, mdt_name: str, offset: Sequence[str]
 ) -> ValidationMessages:
@@ -148,7 +147,6 @@ def validate_eo3_sharefield_offsets(
             )
 
 
-# CORE TODO: from datacube.model.eo3
 def validate_metadata_type(doc: Dict) -> ValidationMessages:
     """
     Check for common metadata-type mistakes

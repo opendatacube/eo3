@@ -1,6 +1,5 @@
 """ Tools for working with EO3 metadata
 """
-# TODO CORE: copied from datacube.index.eo3
 import warnings
 from functools import reduce
 from typing import Any, Dict, Iterable, Optional, Tuple, Union
@@ -20,7 +19,6 @@ from odc.geo.geom import (
 from eo3.schema import ODC_DATASET_SCHEMA_URL
 
 
-# This is should become eo3.models.GridDoc
 class EO3Grid:
     def __init__(self, grid: Dict[str, Any]) -> None:
         shape = grid.get("shape")

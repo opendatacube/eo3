@@ -2,7 +2,6 @@
 Helper methods for working with AWS
 """
 import os
-import threading
 from typing import Any, Dict, Optional, Tuple, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -12,39 +11,9 @@ import botocore.session
 from botocore.credentials import ReadOnlyCredentials
 from botocore.session import Session
 
-# TODO CORE: Copy of datacube.utils.generic.py
-_LCL = threading.local()
+from eo3.utils import thread_local_cache
 
-
-def thread_local_cache(
-    name: str, initial_value: Any = None, purge: bool = False
-) -> Any:
-    """Define/get thread local object with a given name.
-
-    :param name:          name for this cache
-    :param initial_value: Initial value if not set for this thread
-    :param purge:         If True delete from cache (returning what was there previously)
-
-    Returns
-    -------
-    value previously set in the thread or `initial_value`
-    """
-    absent = object()
-    cc = getattr(_LCL, name, absent)
-    absent = cc is absent
-
-    if absent:
-        cc = initial_value
-
-    if purge:
-        if not absent:
-            delattr(_LCL, name)
-    else:
-        if absent:
-            setattr(_LCL, name, cc)
-
-    return cc
-
+# TODO: ideally this file would eventually be moved to a lower-level utils package
 
 # TODO CORE: Copy of datacube.utils.aws.__init__.py
 ByteRange = Union[slice, Tuple[int, int]]  # pylint: disable=invalid-name
