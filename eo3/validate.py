@@ -9,8 +9,7 @@ import toolz
 
 from eo3 import schema, utils
 from eo3.fields import all_field_offsets
-from eo3.uris import get_part_from_uri, is_absolute
-from eo3.utils import contains
+from eo3.utils import contains, get_part_from_uri, is_absolute
 from eo3.validation_msg import ContextualMessager, Level, ValidationMessages
 
 

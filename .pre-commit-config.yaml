@@ -39,6 +39,7 @@ repos:
         - id: check-merge-conflict
         - id: check-symlinks # Symlinks that don't point to anything?
         - id: check-yaml # Check Yaml file syntax
+          args: [--allow-multiple-documents]
         - id: debug-statements # Avoid commiting debug/breakpoints
         - id: end-of-file-fixer # Normalise on exactly one newline
         - id: fix-byte-order-marker # No UTF-8 byte order marks

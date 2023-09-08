@@ -20,7 +20,7 @@ from pystac.utils import datetime_to_str
 
 from eo3.eo3_core import EO3Grid
 from eo3.model import DatasetMetadata
-from eo3.uris import uri_resolve
+from eo3.utils import uri_resolve
 
 # Mapping between EO3 field names and STAC properties object field names
 MAPPING_EO3_TO_STAC = {

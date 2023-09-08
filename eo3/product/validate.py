@@ -7,7 +7,7 @@ from odc.geo import CRS
 from pyproj.exceptions import CRSError
 
 from eo3 import schema
-from eo3.utils import _is_nan
+from eo3.utils.utils import _is_nan
 from eo3.validation_msg import ValidationMessage, ValidationMessages
 
 
@@ -386,7 +386,7 @@ def numpy_value_fits_dtype(value, dtype):
     if _is_nan(value):
         return np.issubdtype(dtype, np.floating)
     else:
-        return np.all(np.array([value], dtype=dtype) == [value])
+        return np.all(np.array([value]).astype(dtype) == [value])
 
 
 def _find_duplicates(values: Iterable[str]) -> Generator[str, None, None]:

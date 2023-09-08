@@ -9,7 +9,7 @@ import botocore
 import pytest
 from botocore.credentials import ReadOnlyCredentials
 
-from eo3.aws import (
+from eo3.utils.aws import (
     _fetch_text,
     _s3_cache_key,
     auto_find_region,
@@ -54,36 +54,36 @@ def test_ec2_current_region():
     ]
 
     for rv, expect in tests:
-        with mock.patch("eo3.aws._fetch_text", return_value=rv):
+        with mock.patch("eo3.utils.aws._fetch_text", return_value=rv):
             assert ec2_current_region() == expect
 
 
-@mock.patch("eo3.aws.botocore_default_region", return_value=None)
+@mock.patch("eo3.utils.aws.botocore_default_region", return_value=None)
 def test_auto_find_region(*mocks):
-    with mock.patch("eo3.aws._fetch_text", return_value=None):
+    with mock.patch("eo3.utils.aws._fetch_text", return_value=None):
         with pytest.raises(ValueError):
             auto_find_region()
 
-    with mock.patch("eo3.aws._fetch_text", return_value=_json(region="TT")):
+    with mock.patch("eo3.utils.aws._fetch_text", return_value=_json(region="TT")):
         assert auto_find_region() == "TT"
 
 
-@mock.patch("eo3.aws.botocore_default_region", return_value="tt-from-botocore")
+@mock.patch("eo3.utils.aws.botocore_default_region", return_value="tt-from-botocore")
 def test_auto_find_region_2(*mocks):
     assert auto_find_region() == "tt-from-botocore"
 
 
 def test_fetch_text():
-    with mock.patch("eo3.aws.urlopen", return_value=mock_urlopen("", 505)):
+    with mock.patch("eo3.utils.aws.urlopen", return_value=mock_urlopen("", 505)):
         assert _fetch_text("http://localhost:8817") is None
 
-    with mock.patch("eo3.aws.urlopen", return_value=mock_urlopen("text", 200)):
+    with mock.patch("eo3.utils.aws.urlopen", return_value=mock_urlopen("text", 200)):
         assert _fetch_text("http://localhost:8817") == "text"
 
     def fake_urlopen(*args, **kw):
         raise OSError("Always broken")
 
-    with mock.patch("eo3.aws.urlopen", fake_urlopen):
+    with mock.patch("eo3.utils.aws.urlopen", fake_urlopen):
         assert _fetch_text("http://localhost:8817") is None
 
 
@@ -130,7 +130,7 @@ def test_s3_unsigned(monkeypatch, without_aws_env):
     assert s3._request_signer.signature_version == botocore.UNSIGNED
 
 
-@mock.patch("eo3.aws.ec2_current_region", return_value="us-west-2")
+@mock.patch("eo3.utils.aws.ec2_current_region", return_value="us-west-2")
 def test_s3_client_cache(monkeypatch, without_aws_env):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "fake-key-id")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fake-secret")

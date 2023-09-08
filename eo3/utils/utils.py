@@ -22,7 +22,7 @@ import dateutil.parser
 import numpy
 from ruamel.yaml import YAML, YAMLError
 
-from eo3.uris import as_url, mk_part_uri, uri_to_local_path
+from .uris import as_url, mk_part_uri, uri_to_local_path
 
 # TODO: ideally the functions marked as 'general util' (originally copied
 # over from core) would eventually be moved to a lower-level utils package
@@ -189,7 +189,7 @@ def _open_from_s3(url):
     if o.scheme != "s3":
         raise RuntimeError("Abort abort I don't know how to open non s3 urls")
 
-    from .aws import s3_open
+    from eo3.utils.aws import s3_open
 
     yield s3_open(url)
 

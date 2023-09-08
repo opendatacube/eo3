@@ -6,6 +6,14 @@ import referencing
 from eo3.utils import read_file
 
 
+def _is_json_array(checker, instance) -> bool:
+    """
+    By default, jsonschema only allows a json array to be a Python list.
+    Let's allow it to be a tuple too.
+    """
+    return isinstance(instance, (list, tuple))
+
+
 def _load_schema_validator(p: Path) -> jsonschema.Draft7Validator:
     """
     Create a schema instance for the file.
@@ -30,8 +38,13 @@ def _load_schema_validator(p: Path) -> jsonschema.Draft7Validator:
         registry = referencing.Registry(retrieve=doc_reference)
     else:
         registry = referencing.Registry()
-    jsonschema.Draft7Validator.check_schema(schema)
-    return jsonschema.Draft7Validator(schema, registry=registry)
+
+    validator = jsonschema.validators.validator_for(schema)
+    validator.check_schema(schema)
+    custom_validator = jsonschema.validators.extend(
+        validator, type_checker=validator.TYPE_CHECKER.redefine("array", _is_json_array)
+    )
+    return custom_validator(schema, registry=registry)
 
 
 SCHEMAS_PATH = Path(__file__).parent

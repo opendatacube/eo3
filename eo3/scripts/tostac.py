@@ -13,8 +13,7 @@ from click import echo, style
 
 import eo3.stac as eo3stac
 from eo3.model import DatasetMetadata
-from eo3.uris import normalise_path
-from eo3.utils import jsonify_document
+from eo3.utils import jsonify_document, normalise_path
 
 
 class PathPath(click.Path):
