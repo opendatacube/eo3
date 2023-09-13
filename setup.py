@@ -19,6 +19,7 @@ tests_require = [
     "pep8-naming",
     "pytest",
     "pytest-cov",
+    "pytest-httpserver",
     "rio_cogeo",
     "sphinx-autodoc-typehints",
     "sphinx_rtd_theme",

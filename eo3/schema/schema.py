@@ -39,12 +39,14 @@ def _load_schema_validator(p: Path) -> jsonschema.Draft7Validator:
     else:
         registry = referencing.Registry()
 
-    validator = jsonschema.validators.validator_for(schema)
-    validator.check_schema(schema)
-    custom_validator = jsonschema.validators.extend(
-        validator, type_checker=validator.TYPE_CHECKER.redefine("array", _is_json_array)
+    jsonschema.Draft7Validator.check_schema(schema)
+    validator = jsonschema.validators.extend(
+        jsonschema.Draft7Validator,
+        type_checker=jsonschema.Draft7Validator.TYPE_CHECKER.redefine(
+            "array", _is_json_array
+        ),
     )
-    return custom_validator(schema, registry=registry)
+    return validator(schema, registry=registry)
 
 
 SCHEMAS_PATH = Path(__file__).parent
