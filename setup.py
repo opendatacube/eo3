@@ -80,7 +80,7 @@ setup(
         "click",
         "defusedxml",
         "h5py",
-        "jsonschema>=4.18,<4.19",  # We want a Draft7Validator, but 4.19 causes issues
+        "jsonschema==4.18.0",  # We want a Draft7Validator, but 4.18.0 is the only version that works
         "referencing",
         "numpy>=1.15.4",
         "odc-geo",
