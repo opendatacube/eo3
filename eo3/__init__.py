@@ -1,20 +1,15 @@
 from ._version import get_versions
-from .assemble import IncompleteDatasetError
-from .images import GridSpec, ValidDataMethod
-from .model import Eo3DatasetDocBase
-from .properties import Eo3DictBase
+from .fields import Range
+from .model import DatasetMetadata
 
-REPO_URL = "https://github.com/GeoscienceAustralia/eo-datasets.git"
+REPO_URL = "https://github.com/opendatacube/eo3.git"
 
 __version__ = get_versions()["version"]
 del get_versions
 
 __all__ = (
-    "Eo3DatasetDocBase",
-    "Eo3DictBase",
-    "GridSpec",
-    "IncompleteDatasetError",
+    "DatasetMetadata",
+    "Range",
     "REPO_URL",
-    "ValidDataMethod",
     "__version__",
 )

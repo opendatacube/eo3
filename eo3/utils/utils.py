@@ -5,30 +5,27 @@ import json
 import math
 import os
 import re
+import threading
 from collections import OrderedDict
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple, Union
+from typing import Any, Iterable, Mapping, Sequence, Tuple, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from uuid import UUID
 
-import yaml
-
-try:
-    from yaml import CSafeLoader as SafeLoader  # type: ignore
-except ImportError:
-    from yaml import SafeLoader  # type: ignore
-
 import ciso8601
 import click
+import dateutil.parser
 import numpy
+from ruamel.yaml import YAML, YAMLError
 
-from eo3.uris import as_url, mk_part_uri
+from .uris import as_url, mk_part_uri, uri_to_local_path
 
-EO3_SCHEMA = "https://schemas.opendatacube.org/dataset"
+# TODO: ideally the functions marked as 'general util' (originally copied
+# over from core) would eventually be moved to a lower-level utils package
 
 
 class ItemProvider(enum.Enum):
@@ -161,33 +158,6 @@ def get_collection_number(
     )
 
 
-def is_doc_eo3(doc: Dict[str, Any]) -> bool:
-    """Is this document eo3?
-
-    :param doc: Parsed ODC Dataset metadata document
-
-    :returns:
-        False if this document is a legacy dataset
-        True if this document is eo3
-
-    :raises ValueError: For an unsupported document
-    """
-    schema = doc.get("$schema")
-    # All legacy documents had no schema at all.
-    if schema is None:
-        return False
-
-    if schema == EO3_SCHEMA:
-        return True
-
-    # Otherwise it has an unknown schema.
-    #
-    # Reject it for now.
-    # We don't want future documents (like Stac items, or "eo4") to be quietly
-    # accepted as legacy eo.
-    raise ValueError(f"Unsupported dataset schema: {schema!r}")
-
-
 def flatten_dict(
     d: Mapping, prefix: str = None, separator: str = "."
 ) -> Iterable[Tuple[str, Any]]:
@@ -212,49 +182,26 @@ def flatten_dict(
 
 
 # CORE TODO: from datacube.utils.documents
+# TODO: general util
 @contextmanager
 def _open_from_s3(url):
     o = urlparse(url)
     if o.scheme != "s3":
         raise RuntimeError("Abort abort I don't know how to open non s3 urls")
 
-    from .aws import s3_open
+    from eo3.utils.aws import s3_open
 
     yield s3_open(url)
 
 
 # CORE TODO: from datacube.utils.documents
+# TODO: general util
 def _open_with_urllib(url):
     return urlopen(url)  # nosec B310
 
 
 # CORE TODO: from datacube.utils.documents
-class NoDatesSafeLoader(SafeLoader):  # pylint: disable=too-many-ancestors
-    @classmethod
-    def remove_implicit_resolver(cls, tag_to_remove):
-        """
-        Removes implicit resolvers for a particular tag
-
-        Takes care not to modify resolvers in super classes.
-
-        We want to load datetimes as strings, not dates. We go on to
-        serialise as json which doesn't have the advanced types of
-        yaml, and leads to slightly different objects down the track.
-        """
-        if "yaml_implicit_resolvers" not in cls.__dict__:
-            cls.yaml_implicit_resolvers = cls.yaml_implicit_resolvers.copy()
-
-        for first_letter, mappings in cls.yaml_implicit_resolvers.items():
-            cls.yaml_implicit_resolvers[first_letter] = [
-                (tag, regexp) for tag, regexp in mappings if tag != tag_to_remove
-            ]
-
-
-# CORE TODO: from datacube.utils.documents
-NoDatesSafeLoader.remove_implicit_resolver("tag:yaml.org,2002:timestamp")
-
-
-# CORE TODO: from datacube.utils.documents
+# TODO: general util
 _PROTOCOL_OPENERS = {
     "s3": _open_from_s3,
     "ftp": _open_with_urllib,
@@ -265,16 +212,57 @@ _PROTOCOL_OPENERS = {
 
 
 # CORE TODO: from datacube.utils.documents
-def load_from_yaml(handle, parse_dates=False):
-    loader = SafeLoader if parse_dates else NoDatesSafeLoader
-    yield from yaml.load_all(handle, Loader=loader)  # noqa: DUO109
+# TODO: general util
+def load_from_yaml(handle):
+    yield from YAML(typ="safe").load_all(handle)  # noqa: DUO109
 
 
 # CORE TODO: from datacube.utils.documents
+# TODO: general util
 def load_from_json(handle):
     yield json.load(handle)
 
 
+# TODO: general util
+def load_from_netcdf(path):
+    for doc in read_strings_from_netcdf(path, variable="dataset"):
+        yield YAML(typ="safe").load(doc)
+
+
+# TODO: general util
+def netcdf_extract_string(chars):
+    """
+    Convert netcdf S|U chars to Unicode string.
+    """
+    import netCDF4  # type: ignore[import]
+
+    if isinstance(chars, str):
+        return chars
+
+    chars = netCDF4.chartostring(chars)
+    if chars.dtype.kind == "U":
+        return str(chars)
+    else:
+        return str(numpy.char.decode(chars))
+
+
+# TODO: general util
+def read_strings_from_netcdf(path, variable):
+    """
+    Load all of the string encoded data from a variable in a NetCDF file.
+
+    By 'string', the CF conventions mean ascii.
+
+    Useful for loading dataset metadata information.
+    """
+    import netCDF4
+
+    with netCDF4.Dataset(str(path)) as ds:
+        for chars in ds[variable]:
+            yield netcdf_extract_string(chars)
+
+
+# TODO: general util
 _PARSERS = {
     ".yaml": load_from_yaml,
     ".yml": load_from_yaml,
@@ -282,6 +270,7 @@ _PARSERS = {
 }
 
 
+# TODO: general util
 def transform_object_tree(f, o, key_transform=lambda k: k):
     """
     Apply a function (f) on all the values in the given document tree (o), returning a new document of
@@ -312,6 +301,7 @@ def transform_object_tree(f, o, key_transform=lambda k: k):
     return f(o)
 
 
+# TODO: general util
 def jsonify_document(doc):
     """
     Make a document ready for serialisation as JSON.
@@ -340,6 +330,7 @@ def jsonify_document(doc):
     return transform_object_tree(fixup_value, doc, key_transform=str)
 
 
+# TODO: general util
 def load_documents(path):
     """
     Load document/s from the specified path.
@@ -348,7 +339,7 @@ def load_documents(path):
 
      - JSON and YAML locally and remotely.
      - Compressed JSON and YAML locally
-     - Data Cube Dataset Documents inside local NetCDF files.  # CORE TODO: stripped out for now???
+     - Data Cube Dataset Documents inside local NetCDF files.
 
     :param path: path or URI to load documents from
     :return: generator of dicts
@@ -359,28 +350,30 @@ def load_documents(path):
     scheme = urlparse(url).scheme
     compressed = url[-3:] == ".gz"
 
-    # if scheme == 'file' and path[-3:] == '.nc':
-    #   path = uri_to_local_path(url)
-    #   yield from load_from_netcdf(path)
-    # lse:
-    with _PROTOCOL_OPENERS[scheme](url) as fh:
-        if compressed:
-            fh = gzip.open(fh)
-            path = path[:-3]
+    if scheme == "file" and path[-3:] == ".nc":
+        path = uri_to_local_path(url)
+        yield from load_from_netcdf(path)
+    else:
+        with _PROTOCOL_OPENERS[scheme](url) as fh:
+            if compressed:
+                fh = gzip.open(fh)
+                path = path[:-3]
 
-        suffix = Path(path).suffix
+            suffix = Path(path).suffix
 
-        parser = _PARSERS[suffix]
+            parser = _PARSERS[suffix]
 
-        yield from parser(fh)
+            yield from parser(fh)
 
 
 # CORE TODO: from datacube.utils.documents
+# TODO: general util
 class InvalidDocException(Exception):  # noqa: N818
     pass
 
 
 # CORE TODO: from datacube.utils.generic
+# TODO: general util
 def map_with_lookahead(it, if_one=None, if_many=None):
     """
     It's like normal map: creates a new generator by applying a function to every
@@ -408,6 +401,7 @@ def map_with_lookahead(it, if_one=None, if_many=None):
         yield proc(v)
 
 
+# TODO: general util
 def read_documents(*paths, uri=False):
     """
     Read and parse documents from the filesystem or remote URLs (yaml or json).
@@ -451,13 +445,20 @@ def read_documents(*paths, uri=False):
             yield from process_file(path)
         except InvalidDocException as e:
             raise e
-        except (yaml.YAMLError, ValueError) as e:
+        except (YAMLError, ValueError) as e:
             raise InvalidDocException(f"Failed to load {path}: {e}")
         except Exception as e:
             raise InvalidDocException(f"Failed to load {path}: {e}")
 
 
+# TODO: general util
+def read_file(p: Path):
+    """Shorthand for when you just need to get the dict representation of 1 file"""
+    return next(iter(read_documents(p)))[1]
+
+
 # CORE TODO: from datacube.utils.changes
+# TODO: general util
 # Type that can be checked for changes.
 # (MyPy approximation without recursive references)
 Changable = Union[str, int, None, Sequence[Any], Mapping[str, Any]]
@@ -496,3 +497,61 @@ def _is_nan(v):
     if isinstance(v, str):
         return v == "NaN"
     return isinstance(v, float) and math.isnan(v)
+
+
+# CORE TODO: from datacube.utils.dates
+# TODO: general util
+def parse_time(time: Union[str, datetime]) -> datetime:
+    """Convert string to datetime object
+
+    This function deals with ISO8601 dates fast, and fallbacks to python for
+    other formats.
+
+    Calling this on datetime object is a no-op.
+    """
+    if isinstance(time, str):
+        try:
+            from ciso8601 import (  # pylint: disable=wrong-import-position # noqa: F401
+                parse_datetime,
+            )
+
+            return parse_datetime(time)
+        except (ImportError, ValueError):  # pragma: no cover
+            return dateutil.parser.parse(time)
+
+    return time
+
+
+# CORE TODO: from datacube.utils.generic.py
+# TODO: general util
+_LCL = threading.local()
+
+
+def thread_local_cache(
+    name: str, initial_value: Any = None, purge: bool = False
+) -> Any:
+    """Define/get thread local object with a given name.
+
+    :param name:          name for this cache
+    :param initial_value: Initial value if not set for this thread
+    :param purge:         If True delete from cache (returning what was there previously)
+
+    Returns
+    -------
+    value previously set in the thread or `initial_value`
+    """
+    absent = object()
+    cc = getattr(_LCL, name, absent)
+    absent = cc is absent
+
+    if absent:
+        cc = initial_value
+
+    if purge:
+        if not absent:
+            delattr(_LCL, name)
+    else:
+        if absent:
+            setattr(_LCL, name, cc)
+
+    return cc
