@@ -6,8 +6,8 @@ import numpy as np
 from odc.geo import CRS
 from pyproj.exceptions import CRSError
 
-from eo3 import schema
-from eo3.utils.utils import _is_nan
+from eo3 import serialise
+from eo3.utils import _is_nan
 from eo3.validation_msg import ValidationMessage, ValidationMessages
 
 
@@ -18,7 +18,7 @@ def validate_product(doc: Dict) -> ValidationMessages:
 
     # Validate it against ODC's product schema.
     has_doc_errors = False
-    for error in schema.PRODUCT_SCHEMA.iter_errors(doc):
+    for error in serialise.PRODUCT_SCHEMA.iter_errors(doc):
         has_doc_errors = True
         displayable_path = ".".join(map(str, error.absolute_path))
         context = f"({displayable_path}) " if displayable_path else ""
@@ -79,13 +79,13 @@ def validate_product(doc: Dict) -> ValidationMessages:
 def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
     for key, value in template.items():
         if key == "product":
-            for prod_key, prod_val in value.items():
+            for prod_key, prod_val in template["product"].items():
                 if prod_key == "name":
-                    if prod_val != name:
+                    if template["product"]["name"] != name:
                         yield ValidationMessage.error(
                             "product_name_mismatch",
                             "If specified, metadata::product::name must match the product name "
-                            f"(Expected {name}, got {prod_val})",
+                            f"(Expected {name}, got {template['product']['name']})",
                         )
                     else:
                         yield ValidationMessage.warning(
@@ -98,7 +98,7 @@ def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
                         f"Only the name field is permitted in metadata::product::name ({prod_key})",
                     )
         elif key == "properties":
-            for prop_key, prop_val in value.items():
+            for prop_key, prop_val in template["properties"].items():
                 if isinstance(prop_val, dict):
                     yield ValidationMessage.error(
                         "nested_metadata",
@@ -386,7 +386,7 @@ def numpy_value_fits_dtype(value, dtype):
     if _is_nan(value):
         return np.issubdtype(dtype, np.floating)
     else:
-        return np.all(np.array([value]).astype(dtype) == [value])
+        return np.all(np.array([value], dtype=dtype) == [value])
 
 
 def _find_duplicates(values: Iterable[str]) -> Generator[str, None, None]:

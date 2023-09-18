@@ -4,10 +4,8 @@ import re
 import urllib.parse
 from pathlib import Path
 from typing import Optional, Union
-from urllib.parse import parse_qsl, urljoin, urlparse
+from urllib.parse import urljoin, urlparse
 from urllib.request import url2pathname
-
-# TODO: ideally this file would eventually be moved to a lower-level utils package
 
 # CORE TODO: forked from datacube.utils.uris
 
@@ -171,44 +169,6 @@ def as_url(maybe_uri: str) -> str:
         return maybe_uri
     else:
         return pathlib.Path(maybe_uri).absolute().as_uri()
-
-
-def is_absolute(url):
-    """
-    >>> is_absolute('LC08_L1TP_108078_20151203_20170401_01_T1.TIF')
-    False
-    >>> is_absolute('data/LC08_L1TP_108078_20151203_20170401_01_T1.TIF')
-    False
-    >>> is_absolute('/g/data/somewhere/LC08_L1TP_108078_20151203_20170401_01_T1.TIF')
-    True
-    >>> is_absolute('file:///g/data/v10/somewhere/LC08_L1TP_108078_20151203_20170401_01_T1.TIF')
-    True
-    >>> is_absolute('http://example.com/LC08_L1TP_108078_20151203_20170401_01_T1.TIF')
-    True
-    >>> is_absolute('tar:///g/data/v10/somewhere/dataset.tar#LC08_L1TP_108078_20151203_20170401_01_T1.TIF')
-    True
-    """
-    location = urlparse(url)
-    return bool(location.scheme or location.netloc) or os.path.isabs(location.path)
-
-
-def get_part_from_uri(url):
-    """
-    >>> get_part_from_uri('path/to/file.tif')
-    >>> get_part_from_uri('path/to/file.tif#page=2')
-    >>> get_part_from_uri('path/to/file.tif#part=3')
-    3
-    >>> get_part_from_uri('path/to/file.tif#part=one')
-    'one'
-    """
-    opts = dict(parse_qsl(urlparse(url).fragment))
-    part = opts.get("part")
-    if part is None:
-        return None
-    try:
-        return int(part)
-    except ValueError:
-        return part
 
 
 def register_scheme(*schemes):

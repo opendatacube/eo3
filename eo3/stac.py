@@ -18,9 +18,8 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.view import ViewExtension
 from pystac.utils import datetime_to_str
 
-from eo3.eo3_core import EO3Grid
-from eo3.model import DatasetMetadata
-from eo3.utils import uri_resolve
+from eo3.model import Eo3DatasetDocBase, GridDoc
+from eo3.uris import uri_resolve
 
 # Mapping between EO3 field names and STAC properties object field names
 MAPPING_EO3_TO_STAC = {
@@ -104,7 +103,7 @@ def _asset_title_fields(asset_name: str) -> Optional[str]:
         return None
 
 
-def _proj_fields(grid: Dict[str, EO3Grid], grid_name: str = "default") -> Dict:
+def _proj_fields(grid: Dict[str, GridDoc], grid_name: str = "default") -> Dict:
     """
     Get any proj (Stac projection extension) fields if we have them for the grid.
     """
@@ -127,9 +126,7 @@ def _lineage_fields(lineage: Dict) -> Dict:
     """
     if lineage:
         lineage_dict = {
-            # there will only ever be one lineage id per level
-            key: [str(value["id"])]
-            for key, value in lineage.items()
+            key: [str(uuid) for uuid in value] for key, value in lineage.items()
         }
 
         return {"odc:lineage": lineage_dict}
@@ -139,7 +136,7 @@ def _lineage_fields(lineage: Dict) -> Dict:
 
 def _odc_links(
     explorer_base_url: str,
-    dataset: DatasetMetadata,
+    dataset: Eo3DatasetDocBase,
     collection_url: Optional[str],
 ) -> List[Link]:
     """
@@ -176,17 +173,24 @@ def _odc_links(
         warnings.warn("No collection provided for Stac Item.")
 
 
-def _get_projection(dataset: DatasetMetadata) -> Tuple[Optional[int], Optional[str]]:
+def _get_projection(dataset: Eo3DatasetDocBase) -> Tuple[Optional[int], Optional[str]]:
     if dataset.crs is None:
         return None, None
 
-    epsg = dataset.crs.epsg
-    wkt = None if epsg is not None else dataset.crs.wkt
+    crs_l = dataset.crs.lower()
+    epsg = None
+    wkt = None
+    if crs_l.startswith("epsg:"):
+        epsg = int(crs_l.lstrip("epsg:"))
+    else:
+        wkt = dataset.crs
 
     return epsg, wkt
 
 
-def eo3_to_stac_properties(dataset: DatasetMetadata, title: str = None) -> Dict:
+def eo3_to_stac_properties(
+    dataset: Eo3DatasetDocBase, crs: Optional[str] = None, title: str = None
+) -> Dict:
     """
     Convert EO3 properties dictionary to the Stac equivalent.
     """
@@ -203,7 +207,7 @@ def eo3_to_stac_properties(dataset: DatasetMetadata, title: str = None) -> Dict:
 
 
 def to_pystac_item(
-    dataset: DatasetMetadata,
+    dataset: Eo3DatasetDocBase,
     stac_item_destination_url: str,
     dataset_location: Optional[str] = None,
     odc_dataset_metadata_url: Optional[str] = None,
@@ -227,7 +231,7 @@ def to_pystac_item(
     """
 
     if dataset.geometry is not None:
-        geom = Geometry(dataset.geometry, dataset.crs)
+        geom = Geometry(dataset.geometry, CRS(dataset.crs))
         wgs84_geometry = geom.to_crs(CRS("epsg:4326"), math.inf)
 
         geometry = wgs84_geometry.json
@@ -237,7 +241,7 @@ def to_pystac_item(
         bbox = None
 
     properties = eo3_to_stac_properties(dataset, title=dataset.label)
-    properties.update(_lineage_fields(dataset.sources))
+    properties.update(_lineage_fields(dataset.lineage))
 
     dt = properties["datetime"]
     del properties["datetime"]
@@ -345,7 +349,7 @@ def to_pystac_item(
 
 
 def to_stac_item(
-    dataset: DatasetMetadata,
+    dataset: Eo3DatasetDocBase,
     stac_item_destination_url: str,
     dataset_location: Optional[str] = None,
     odc_dataset_metadata_url: Optional[str] = None,

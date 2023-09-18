@@ -23,7 +23,6 @@ properties:
         # Should match name field in product schema.  (alphanumeric plus underscore and hyphen)
         pattern: '^\w+$'
       href:
-        # Optional but recommended
         type: string
         format: url
     required:
@@ -60,7 +59,7 @@ properties:
           minItems: 6
           maxItems: 9
         crs:
-          # Optional - defaults to dataset crs, described above.
+          # Optional - defaults to dataset crs, described abobe.
           # Either an epsg code ('epsg:1234') (preferred!) or a WKT string if no EPSG is possible.
           type: string
       required:
@@ -82,15 +81,6 @@ properties:
         # TODO: "string" type is problematic as they're currently parsed directly into datetime objects...
         # type: string
         format: date-time
-
-      dea:dataset_maturity:
-        type: string
-        nullable: true
-        enum:
-          - final
-          - interim
-          - nrt
-          - null
     required:
       - odc:processing_datetime
       - datetime

@@ -1,12 +1,125 @@
 import operator
-from typing import Dict, Iterable, Mapping, Sequence
+from pathlib import Path
+from textwrap import indent
+from typing import Dict, Iterable, Mapping, Sequence, Union
 
+import pytest
 import rapidjson
 from click.testing import CliRunner, Result
 from deepdiff import DeepDiff
 from deepdiff.model import DiffLevel
+from ruamel import yaml
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 
+from eo3 import Eo3DatasetDocBase, serialise
 from eo3.validation_msg import Level, ValidationMessage, ValidationMessages
+
+
+def check_prepare_outputs(
+    invoke_script,
+    run_args,
+    expected_doc: Dict,
+    expected_metadata_path: Path,
+    ignore_fields=(),
+):
+    """Call a prepare script and check for an expected output document."""
+    __tracebackhide__ = operator.methodcaller("errisinstance", AssertionError)
+    res = run_prepare_cli(invoke_script, *run_args)
+
+    try:
+        assert_expected_eo3_path(expected_doc, expected_metadata_path, ignore_fields)
+    except AssertionError:
+        print(f'Output:\n{indent(res.output, "    ")}')
+        raise
+
+
+def assert_expected_eo3_path(
+    expected_doc: Dict,
+    expected_path: Path,
+    ignore_fields=(),
+):
+    """
+    Check an output path of an EO3 dataset matches an expected document.
+
+    This is slightly smarter about doing geometry equality etc within the document.
+    """
+    __tracebackhide__ = operator.methodcaller("errisinstance", AssertionError)
+    assert (
+        expected_path.exists()
+    ), f"Expected output EO3 path doesn't exist: {expected_path}"
+    assert_same_as_file(
+        expected_doc,
+        expected_path,
+        # We check the geometry below
+        ignore_fields=("geometry",) + tuple(ignore_fields),
+    )
+
+    if "geometry" not in ignore_fields:
+        # Compare geometry after parsing, rather than comparing the raw dict values.
+        produced_dataset = serialise.from_path(expected_path)
+        expected_dataset = serialise.from_doc(expected_doc, skip_validation=True)
+        if expected_dataset.geometry is None:
+            assert produced_dataset.geometry is None, (
+                f"Expected a null geometry, "
+                f"but output included one: {produced_dataset.geometry.__geo_interface__!r}"
+            )
+        else:
+            assert_shapes_mostly_equal(
+                produced_dataset.geometry,
+                expected_dataset.geometry,
+                # Typically meters -- this is easily good enough accuracy.
+                0.0001,
+            )
+
+
+def assert_expected_eo3(
+    expected_doc: Eo3DatasetDocBase,
+    given_doc: Eo3DatasetDocBase,
+    *,
+    ignore_fields=(),
+):
+    """
+    Do the two DatasetDocs match?
+
+    (Unlike equality, gives reasonable error message of differences, and
+    compares geometry more intelligently.)
+    """
+    __tracebackhide__ = operator.methodcaller("errisinstance", AssertionError)
+    if expected_doc.geometry is None:
+        assert given_doc.geometry is None, "Expected no geometry"
+    else:
+        assert_shapes_mostly_equal(
+            given_doc.geometry, expected_doc.geometry, 0.00000001
+        )
+    e = serialise.to_doc(expected_doc)
+    g = serialise.to_doc(given_doc)
+    for f in ("geometry",) + ignore_fields:
+        e.pop(f)
+        g.pop(f)
+    assert_same(g, e)
+
+
+def assert_shapes_mostly_equal(
+    shape1: Union[BaseGeometry, dict],
+    shape2: Union[BaseGeometry, dict],
+    threshold: float,
+):
+    __tracebackhide__ = operator.methodcaller("errisinstance", AssertionError)
+
+    if isinstance(shape1, dict):
+        shape1 = shape(shape1)
+    if isinstance(shape2, dict):
+        shape2 = shape(shape2)
+
+    # Check area first, as it's a nicer error message when they're wildly different.
+    assert shape1.area == pytest.approx(
+        shape2.area, abs=threshold
+    ), f"Shapes have different areas: {shape1.area} != {shape2.area}"
+
+    s1 = shape1.simplify(tolerance=threshold)
+    s2 = shape2.simplify(tolerance=threshold)
+    assert (s1 - s2).area < threshold, f"{s1} is not mostly equal to {s2}"
 
 
 def assert_same(expected_doc: Dict, generated_doc: Dict):
@@ -16,6 +129,27 @@ def assert_same(expected_doc: Dict, generated_doc: Dict):
     __tracebackhide__ = operator.methodcaller("errisinstance", AssertionError)
     doc_diffs = DeepDiff(expected_doc, generated_doc, significant_digits=6)
     assert doc_diffs == {}, "\n".join(format_doc_diffs(expected_doc, generated_doc))
+
+
+def assert_same_as_file(expected_doc: Dict, generated_file: Path, ignore_fields=()):
+    """Assert a file contains the given document content (after normalisation etc)"""
+    __tracebackhide__ = operator.methodcaller("errisinstance", AssertionError)
+
+    assert generated_file.exists(), f"Expected file to exist {generated_file.name}"
+
+    with generated_file.open("r") as f:
+        generated_doc = yaml.YAML(typ="safe").load(f)
+
+    expected_doc = dict(expected_doc)
+    for field in ignore_fields:
+        if field in generated_doc:
+            del generated_doc[field]
+        if field in expected_doc:
+            del expected_doc[field]
+
+    expected_doc = dump_roundtrip(expected_doc)
+    generated_doc = dump_roundtrip(generated_doc)
+    assert_same(generated_doc, expected_doc)
 
 
 def run_prepare_cli(invoke_script, *args, expect_success=True) -> Result:

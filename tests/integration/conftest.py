@@ -2,12 +2,12 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Callable, Dict
 
 import pytest
 
 from eo3 import serialise
-from eo3.model import DatasetMetadata
+from eo3.model import Eo3DatasetDocBase
 
 # from eo3.prepare.landsat_l1_prepare import normalise_nci_symlinks
 
@@ -50,6 +50,18 @@ S1_EO3_PATH: Path = (
 WOFS_PATH: Path = Path(__file__).parent / "data" / "wofs"
 
 
+# def path_offset(base: Path, offset: str):
+#    return str(normalise_nci_symlinks(base.absolute().joinpath(offset)))
+
+
+# def tar_offset(tar: Path, offset: str):
+#     return "tar:" + str(normalise_nci_symlinks(tar.absolute())) + "!" + offset
+
+
+def relative_offset(base, offset):
+    return offset
+
+
 @pytest.fixture
 def sentinel1_eo3() -> Path:
     with open(S1_EO3_PATH) as f:
@@ -67,10 +79,20 @@ def l1_c2_ls8_folder(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def l1_ls8_metadata_path(l1_ls8_folder: Path, l1_ls8_dataset: DatasetMetadata) -> Path:
+def l1_ls8_metadata_path(
+    l1_ls8_folder: Path, l1_ls8_dataset: Eo3DatasetDocBase
+) -> Path:
     path = l1_ls8_folder / f"{l1_ls8_dataset.label}.odc-metadata.yaml"
     serialise.to_path(path, l1_ls8_dataset)
     return path
+
+
+@pytest.fixture
+def l1_ls8_dataset_path(l1_ls8_folder: Path, l1_ls8_metadata_path: Path) -> Path:
+    """
+    A prepared L1 dataset with an EO3 metadata file.
+    """
+    return l1_ls8_folder
 
 
 @pytest.fixture
@@ -98,13 +120,30 @@ def _make_copy(input_path, tmp_path):
 
 
 @pytest.fixture
-def l1_ls8_dataset(l1_ls8_folder_md_expected: Dict) -> DatasetMetadata:
-    return DatasetMetadata(l1_ls8_folder_md_expected)
+def l1_ls8_dataset(l1_ls8_folder_md_expected: Dict) -> Eo3DatasetDocBase:
+    return serialise.from_doc(l1_ls8_folder_md_expected)
 
 
 @pytest.fixture
 def l1_ls8_folder_md_expected(l1_ls8_folder) -> Dict:
-    return expected_l1_ls8_folder(l1_ls8_folder)
+    return expected_l1_ls8_folder(l1_ls8_folder, relative_offset)
+
+
+@pytest.fixture
+def l1_ls8_ga_expected(l1_ls8_folder) -> Dict:
+    return expected_l1_ls8_folder(
+        l1_ls8_folder,
+        relative_offset,
+        organisation="ga.gov.au",
+        collection="3",
+        # the id in the ls8_telemetry_path fixture
+        lineage={"satellite_telemetry_data": ["30841328-89c2-4693-8802-a3560a6cf67a"]},
+    )
+
+
+# @pytest.fixture
+# def l1_ls8_folder_md_expected_absolute(l1_ls8_folder) -> Dict:
+#     return expected_l1_ls8_folder(l1_ls8_folder, path_offset)
 
 
 @pytest.fixture
@@ -135,6 +174,7 @@ def example_metadata(
 
 def expected_l1_ls8_folder(
     l1_ls8_folder: Path,
+    offset: Callable[[Path, str], str] = relative_offset,
     organisation="usgs.gov",
     collection="1",
     l1_collection="1",
@@ -147,15 +187,26 @@ def expected_l1_ls8_folder(
     """
     org_code = organisation.split(".")[0]
     product_name = f"{org_code}_ls8c_level1_{collection}"
-    processing_datetime = datetime(2017, 4, 5, 11, 17, 36)
-    cloud_cover = 93.22
-    points_model = 66
-    points_version = 4
-    rmse_model_x = 4.593
-    rmse_model_y = 5.817
-    software_version = "LPGS_2.7.0"
-    uuid = "a780754e-a884-58a7-9ac0-df518a67f59d"
-    quality_tag = "BQA"
+    if collection == "2":
+        processing_datetime = datetime(2020, 9, 7, 19, 30, 5)
+        cloud_cover = 93.28
+        points_model = 125
+        points_version = 5
+        rmse_model_x = 4.525
+        rmse_model_y = 5.917
+        software_version = "LPGS_15.3.1c"
+        uuid = "d9221c40-24c3-5356-ab22-4dcac2bf2d70"
+        quality_tag = "QA_PIXEL"
+    else:
+        processing_datetime = datetime(2017, 4, 5, 11, 17, 36)
+        cloud_cover = 93.22
+        points_model = 66
+        points_version = 4
+        rmse_model_x = 4.593
+        rmse_model_y = 5.817
+        software_version = "LPGS_2.7.0"
+        uuid = "a780754e-a884-58a7-9ac0-df518a67f59d"
+        quality_tag = "BQA"
     processing_date = processing_datetime.strftime("%Y%m%d")
     return {
         "$schema": "https://schemas.opendatacube.org/dataset",
@@ -167,7 +218,6 @@ def expected_l1_ls8_folder(
         },
         "properties": {
             "datetime": datetime(2016, 1, 21, 23, 50, 23, 54435),
-            "dea:dataset_maturity": "final",
             # The minor version comes from the processing date (as used in filenames to distinguish reprocesses).
             "odc:dataset_version": f"{collection}.0.{processing_date}",
             "odc:file_format": "GeoTIFF",
@@ -250,41 +300,77 @@ def expected_l1_ls8_folder(
         },
         "measurements": {
             "coastal_aerosol": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B1.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B1.TIF",
+                )
             },
             "blue": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B2.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B2.TIF",
+                )
             },
             "green": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B3.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B3.TIF",
+                )
             },
             "red": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B4.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B4.TIF",
+                )
             },
             "nir": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B5.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B5.TIF",
+                )
             },
             "swir_1": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B6.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B6.TIF",
+                )
             },
             "swir_2": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B7.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B7.TIF",
+                )
             },
             "panchromatic": {
                 "grid": "panchromatic",
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B8.TIF",
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B8.TIF",
+                ),
             },
             "cirrus": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B9.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B9.TIF",
+                )
             },
             "lwir_1": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B10.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B10.TIF",
+                )
             },
             "lwir_2": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B11.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_B11.TIF",
+                )
             },
             "quality": {
-                "path": f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_{quality_tag}.TIF"
+                "path": offset(
+                    l1_ls8_folder,
+                    f"LC08_L1TP_090084_20160121_{processing_date}_0{l1_collection}_T1_{quality_tag}.TIF",
+                )
             },
         },
         "accessories": {
@@ -298,7 +384,7 @@ def expected_l1_ls8_folder(
 
 @pytest.fixture
 def l1_ls7_tarball_md_expected(
-    l1_ls7_tarball,
+    l1_ls7_tarball, offset: Callable[[Path, str], str] = relative_offset
 ) -> Dict:
     return {
         "$schema": "https://schemas.opendatacube.org/dataset",
@@ -404,17 +490,47 @@ def l1_ls7_tarball_md_expected(
             },
         },
         "measurements": {
-            "blue": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B1.TIF"},
-            "green": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B2.TIF"},
-            "nir": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B4.TIF"},
-            "quality": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_BQA.TIF"},
-            "red": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B3.TIF"},
-            "swir_1": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B5.TIF"},
-            "swir_2": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B7.TIF"},
+            "blue": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B1.TIF"
+                )
+            },
+            "green": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B2.TIF"
+                )
+            },
+            "nir": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B4.TIF"
+                )
+            },
+            "quality": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_BQA.TIF"
+                )
+            },
+            "red": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B3.TIF"
+                )
+            },
+            "swir_1": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B5.TIF"
+                )
+            },
+            "swir_2": {
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B7.TIF"
+                )
+            },
             "tir_1": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B6_VCID_1.TIF"},
             "tir_2": {"path": "LE07_L1TP_104078_20130429_20161124_01_T1_B6_VCID_2.TIF"},
             "panchromatic": {
-                "path": "LE07_L1TP_104078_20130429_20161124_01_T1_B8.TIF",
+                "path": offset(
+                    l1_ls7_tarball, "LE07_L1TP_104078_20130429_20161124_01_T1_B8.TIF"
+                ),
                 "grid": "panchromatic",
             },
         },
@@ -429,7 +545,7 @@ def l1_ls7_tarball_md_expected(
 
 @pytest.fixture
 def l1_ls5_tarball_md_expected(
-    l1_ls5_tarball,  # offset: Callable[[Path, str], str] = relative_offset
+    l1_ls5_tarball, offset: Callable[[Path, str], str] = relative_offset
 ) -> Dict:
     return {
         "$schema": "https://schemas.opendatacube.org/dataset",
@@ -507,14 +623,46 @@ def l1_ls5_tarball_md_expected(
             }
         },
         "measurements": {
-            "blue": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B1.TIF"},
-            "green": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B2.TIF"},
-            "red": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B3.TIF"},
-            "nir": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B4.TIF"},
-            "swir_1": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B5.TIF"},
-            "swir_2": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B7.TIF"},
-            "tir": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_B6.TIF"},
-            "quality": {"path": "LT05_L1TP_090085_19970406_20161231_01_T1_BQA.TIF"},
+            "blue": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B1.TIF"
+                )
+            },
+            "green": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B2.TIF"
+                )
+            },
+            "red": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B3.TIF"
+                )
+            },
+            "nir": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B4.TIF"
+                )
+            },
+            "swir_1": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B5.TIF"
+                )
+            },
+            "swir_2": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B7.TIF"
+                )
+            },
+            "tir": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_B6.TIF"
+                )
+            },
+            "quality": {
+                "path": offset(
+                    l1_ls5_tarball, "LT05_L1TP_090085_19970406_20161231_01_T1_BQA.TIF"
+                )
+            },
         },
         "accessories": {
             "metadata:landsat_mtl": {
@@ -560,27 +708,7 @@ def metadata_type():
                         ["properties", "dtr:end_datetime"],
                         ["properties", "datetime"],
                     ],
-                },
-                "lat": {
-                    "description": "Latitude range",
-                    "type": "double-range",
-                    "min_offset": [
-                        ["extent", "lat", "begin"],
-                    ],
-                    "max_offset": [
-                        ["extent", "lat", "end"],
-                    ],
-                },
-                "lon": {
-                    "description": "Longitude range",
-                    "type": "double-range",
-                    "min_offset": [
-                        ["extent", "lon", "begin"],
-                    ],
-                    "max_offset": [
-                        ["extent", "lon", "end"],
-                    ],
-                },
+                }
             },
         },
     }
@@ -624,6 +752,7 @@ def eo3_product():
         "metadata_type": "eo3_landsat_l1",
         "license": "CC-BY-4.0",
         "metadata": {
+            # "product": {"name": "usgs_ls8c_level1_1"},  DEPRECATED
             "properties": {
                 "eo:platform": "landsat-8",
                 "eo:instrument": "OLI_TIRS",

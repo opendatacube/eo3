@@ -2,7 +2,7 @@ from typing import Callable, Dict, Optional, Sequence
 
 from attr import define
 
-from eo3 import schema
+from eo3 import serialise
 from eo3.validation_msg import ValidationMessage, ValidationMessages
 
 
@@ -158,7 +158,7 @@ def validate_metadata_type(doc: Dict) -> ValidationMessages:
         yield ValidationMessage.error("no_type_name", "Metadata type must have a name.")
         return
     # Validate it against ODC's schema (will be refused by ODC otherwise)
-    for error in schema.METADATA_TYPE_SCHEMA.iter_errors(doc):
+    for error in serialise.METADATA_TYPE_SCHEMA.iter_errors(doc):
         displayable_path = ".".join(map(str, error.absolute_path))
         context = f"Error in {name}: ({displayable_path}) " if displayable_path else ""
         yield ValidationMessage.error("document_schema", f"{context}{error.message} ")

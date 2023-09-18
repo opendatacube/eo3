@@ -19,11 +19,9 @@ tests_require = [
     "pep8-naming",
     "pytest",
     "pytest-cov",
-    "pytest-httpserver",
     "rio_cogeo",
     "sphinx-autodoc-typehints",
     "sphinx_rtd_theme",
-    "moto",
 ]
 
 EXTRAS_REQUIRE = {
@@ -80,8 +78,7 @@ setup(
         "click",
         "defusedxml",
         "h5py",
-        "jsonschema==4.18.0",  # We want a Draft7Validator, but 4.18.0 is the only version that works
-        "referencing",
+        "jsonschema>=3",  # We want a Draft6Validator
         "numpy>=1.15.4",
         "odc-geo",
         "pyproj",

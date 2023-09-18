@@ -1,14 +1,30 @@
+import uuid
 from datetime import datetime
+from functools import partial
 from pathlib import Path, PurePath
-from typing import Mapping
+from typing import IO, Dict, Iterable, Mapping, Tuple, Union
 from uuid import UUID
 
+import attr
+import cattr
+import ciso8601
+import click
+import jsonschema
 import numpy
+import shapely
+import shapely.affinity
+import shapely.ops
+from affine import Affine
 from ruamel.yaml import YAML, Representer
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 
-from eo3.model import DatasetMetadata
+from eo3.model import ODC_DATASET_SCHEMA_URL, Eo3DatasetDocBase, Eo3DictBase
 from eo3.properties import FileFormat
+from eo3.utils import read_documents
+
+converter = cattr.Converter()
 
 
 def _format_representer(dumper, data: FileFormat):
@@ -101,9 +117,195 @@ def dumps_yaml(stream, *docs: Mapping) -> None:
     return yml.dump_all(docs, stream=stream)
 
 
-def to_formatted_doc(d: DatasetMetadata) -> CommentedMap:
-    """Serialise to a yaml-serialisation-ready dict"""
-    doc = prepare_formatting(d.doc)
+def load_yaml(p: Path) -> Dict:
+    with p.open() as f:
+        return _yaml().load(f)
+
+
+def _yaml():
+    return YAML(typ="safe")
+
+
+def loads_yaml(stream: Union[str, IO]) -> Iterable[Dict]:
+    """Dump yaml through a stream, using the default deserialisation settings."""
+    return _yaml().load_all(stream)
+
+
+def from_path(path: Path, skip_validation=False) -> Eo3DatasetDocBase:
+    """
+    Parse an EO3 document from a filesystem path
+
+    :param path: Filesystem path
+    :param skip_validation: Optionally disable validation (it's faster, but I hope your
+            doc is structured correctly)
+    """
+    if path.suffix.lower() not in (".yaml", ".yml"):
+        raise ValueError(f"Unexpected file type {path.suffix}. Expected yaml")
+
+    return from_doc(load_yaml(path), skip_validation=skip_validation)
+
+
+class InvalidDataset(Exception):
+    def __init__(self, path: Path, error_code: str, reason: str) -> None:
+        self.path = path
+        self.error_code = error_code
+        self.reason = reason
+
+
+def _is_json_array(checker, instance) -> bool:
+    """
+    By default, jsonschema only allows a json array to be a Python list.
+    Let's allow it to be a tuple too.
+    """
+    return isinstance(instance, (list, tuple))
+
+
+def _load_schema_validator(p: Path) -> jsonschema.Draft6Validator:
+    """
+    Create a schema instance for the file.
+
+    (Assumes they are trustworthy. Only local schemas!)
+    """
+    with p.open() as f:
+        schema = _yaml().load(f)
+    validator = jsonschema.validators.validator_for(schema)
+    validator.check_schema(schema)
+
+    # Allow schemas to reference other schemas relatively
+    def doc_reference(path):
+        path = p.parent.joinpath(path)
+        if not path.exists():
+            raise ValueError(f"Reference not found: {path}")
+        referenced_schema = next(iter(read_documents(path)))[1]
+        return referenced_schema
+
+    ref_resolver = jsonschema.RefResolver.from_schema(
+        schema, handlers={"": doc_reference}
+    )
+    custom_validator = jsonschema.validators.extend(
+        validator, type_checker=validator.TYPE_CHECKER.redefine("array", _is_json_array)
+    )
+    return custom_validator(schema, resolver=ref_resolver)
+
+
+SCHEMAS_PATH = Path(__file__).parent / "schema"
+DATASET_SCHEMA = _load_schema_validator(SCHEMAS_PATH / "dataset.schema.yaml")
+PRODUCT_SCHEMA = _load_schema_validator(SCHEMAS_PATH / "product-schema.yaml")
+METADATA_TYPE_SCHEMA = _load_schema_validator(
+    SCHEMAS_PATH / "metadata-type-schema.yaml"
+)
+
+
+def from_doc(doc: Dict, skip_validation=False) -> Eo3DatasetDocBase:
+    """
+    Parse a dictionary into an EO3 dataset.
+
+    By default it will validate it against the schema, which will result in far more
+    useful error messages if fields are missing.
+
+    :param doc: A dictionary, such as is returned from yaml.load or json.load
+    :param skip_validation: Optionally disable validation (it's faster, but I hope your
+            doc is structured correctly)
+    """
+    doc = doc.copy()
+    if not skip_validation:
+        # don't error if properties 'extent' or 'grid_spatial' are present
+        if doc.get("extent"):
+            del doc["extent"]
+        if doc.get("grid_spatial"):
+            del doc["grid_spatial"]
+        DATASET_SCHEMA.validate(doc)
+
+    location = doc.pop("location", None)
+    if location:
+        doc["locations"] = [location]
+
+    return converter.structure(doc, Eo3DatasetDocBase)
+
+
+def _structure_as_uuid(d, t):
+    return uuid.UUID(str(d))
+
+
+def _structure_as_stac_props(d, t, normalise_properties=False):
+    """
+    :param normalise_properties:
+        We don't normalise properties by default as we usually want it to reflect the original file.
+
+    """
+    return Eo3DictBase(
+        # The passed-in dictionary is stored internally, so we want to make a copy of it
+        # so that our serialised output is fully separate from the input.
+        dict(d),
+        normalise_input=normalise_properties,
+    )
+
+
+def _structure_as_affine(d: Tuple, t):
+    if len(d) not in [6, 9]:
+        raise ValueError(f"Expected 6 or 9 coefficients in transform. Got {d!r}")
+
+    if len(d) == 9:
+        if tuple(d[-3:]) != (0.0, 0.0, 1.0):
+            raise ValueError(
+                f"Nine-element affine should always end in [0, 0, 1]. Got {d!r}"
+            )
+        d = [*d[:-3]]
+
+    return Affine(*d)
+
+
+def _unstructure_as_stac_props(v: Eo3DictBase):
+    return v._props
+
+
+def _structure_as_shape(d, t):
+    return shape(d)
+
+
+converter.register_structure_hook(uuid.UUID, _structure_as_uuid)
+converter.register_structure_hook(BaseGeometry, _structure_as_shape)
+converter.register_structure_hook(
+    Eo3DictBase,
+    partial(_structure_as_stac_props, normalise_properties=False),
+)
+converter.register_structure_hook(Affine, _structure_as_affine)
+converter.register_unstructure_hook(Eo3DictBase, _unstructure_as_stac_props)
+
+
+def to_doc(d: Eo3DatasetDocBase) -> Dict:
+    """
+    Serialise a DatasetDoc to a dict
+
+    If you plan to write this out as a yaml file on disk, you're
+    better off with one of our formatted writers: :func:`.to_stream`, :func:`.to_path`.
+    """
+    doc = attr.asdict(
+        d,
+        recurse=True,
+        dict_factory=dict,
+        # Exclude fields that are the default.
+        filter=lambda attr, value: "doc_exclude" not in attr.metadata
+        and value != attr.default
+        # Exclude any fields set to None. The distinction should never matter in our docs.
+        and value is not None,
+        retain_collection_types=False,
+    )
+    doc["$schema"] = ODC_DATASET_SCHEMA_URL
+    if d.geometry is not None:
+        doc["geometry"] = shapely.geometry.mapping(d.geometry)
+    doc["id"] = str(d.id)
+    doc["properties"] = dict(d.properties)
+
+    if len(doc.get("locations", [])) == 1:
+        doc["location"] = doc.pop("locations")[0]
+
+    return doc
+
+
+def to_formatted_doc(d: Eo3DatasetDocBase) -> CommentedMap:
+    """Serialise a DatasetDoc to a yaml-serialisation-ready dict"""
+    doc = prepare_formatting(to_doc(d))
     # Add user-readable names for measurements as a comment if present.
     if d.measurements:
         for band_name, band_doc in d.measurements.items():
@@ -113,7 +315,7 @@ def to_formatted_doc(d: DatasetMetadata) -> CommentedMap:
     return doc
 
 
-def to_path(path: Path, *ds: DatasetMetadata):
+def to_path(path: Path, *ds: Eo3DatasetDocBase):
     """
     Output dataset(s) as a formatted YAML to a local path
 
@@ -122,7 +324,7 @@ def to_path(path: Path, *ds: DatasetMetadata):
     dump_yaml(path, *(to_formatted_doc(d) for d in ds))
 
 
-def to_stream(stream, *ds: DatasetMetadata):
+def to_stream(stream, *ds: Eo3DatasetDocBase):
     """
     Output dataset(s) as a formatted YAML to an output stream
 
@@ -234,3 +436,30 @@ def _add_space_before(d: CommentedMap, *keys):
     """Add an empty line to the document before a section (key)"""
     for key in keys:
         d.yaml_set_comment_before_after_key(key, before="\n")
+
+
+class ClickDatetime(click.ParamType):
+    """
+    Take a datetime parameter, supporting any ISO8601 date/time/timezone combination.
+    """
+
+    name = "date"
+
+    def convert(self, value, param, ctx):
+        if value is None:
+            return value
+
+        if isinstance(value, datetime):
+            return value
+
+        try:
+            return ciso8601.parse_datetime(value)
+        except ValueError:
+            self.fail(
+                (
+                    "Invalid date string {!r}. Expected any ISO date/time format "
+                    '(eg. "2017-04-03" or "2014-05-14 12:34")'.format(value)
+                ),
+                param,
+                ctx,
+            )
