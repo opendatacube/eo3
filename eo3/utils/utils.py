@@ -461,12 +461,12 @@ def read_file(p: Path):
 # TODO: general util
 # Type that can be checked for changes.
 # (MyPy approximation without recursive references)
-Changable = Union[str, int, None, Sequence[Any], Mapping[str, Any]]
+Changeable = Union[str, int, None, Sequence[Any], Mapping[str, Any]]
 # More accurate recursive definition:
-# Changable = Union[str, int, None, Sequence["Changable"], Mapping[str, "Changable"]]
+# Changeable = Union[str, int, None, Sequence["Changeable"], Mapping[str, "Changeable"]]
 
 
-def contains(v1: Changable, v2: Changable, case_sensitive: bool = False) -> bool:
+def contains(v1: Changeable, v2: Changeable, case_sensitive: bool = False) -> bool:
     """
     Check that v1 is a superset of v2.
 

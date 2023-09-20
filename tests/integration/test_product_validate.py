@@ -152,6 +152,34 @@ def test_complains_about_impossible_nodata_vals(product: Dict):
     assert "unsuitable_nodata" in msgs.error_text()
 
 
+def test_rejects_invalid_measurements(product: Dict):
+    """Complain if measurements are invalid"""
+    # missing property (name)
+    product["measurements"] = [
+        dict(
+            dtype="uint8",
+            units="1",
+            nodata=0,
+        )
+    ]
+    msgs = MessageCatcher(validate_product(product))
+    assert "name" in msgs.error_text()
+
+    # invalid dtype
+    product["measurements"] = [
+        dict(name="red", dtype="random_type", units="1", nodata=-999)
+    ]
+    msgs = MessageCatcher(validate_product(product))
+    assert "random_type" in msgs.error_text()
+
+    # additional property
+    product["measurements"] = [
+        dict(name="red", dtype="uint8", units="1", nodata=0, asdf="asdf")
+    ]
+    msgs = MessageCatcher(validate_product(product))
+    assert "asdf" in msgs.error_text()
+
+
 def test_product_metadata_name(eo3_product):
     eo3_product["metadata"]["product"] = dict(name="spam")
     err_msgs = MessageCatcher(validate_product(eo3_product)).error_text()

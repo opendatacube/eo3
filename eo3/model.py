@@ -126,6 +126,8 @@ class DatasetMetadata:
                 f"invalid_crs: CRS {raw_dict.get('crs')} is not a valid CRS"
             )
         except ValueError as e:
+            if "lineage" in str(e):
+                raise validate.InvalidDatasetError(f"invalid_lineage: {e}")
             raise validate.InvalidDatasetError(f"incomplete_geometry: {e}")
 
         self.__dict__["_normalisers"] = normalisers
@@ -152,7 +154,7 @@ class DatasetMetadata:
             }
         )
 
-        validate.handle_validation_messages(self.validate_base())
+        validate.handle_ds_validation_messages(self.validate_base())
 
     def __getattr__(self, name):
         if name in self.fields.keys():
@@ -380,6 +382,8 @@ class DatasetMetadata:
             yield from self.validate_measurements()
 
     @classmethod
-    def from_path(cls, path):
+    def from_path(cls, ds_path, md_type_path=None):
         # Create DatasetMetadata from filepath
-        return cls(read_file(path))
+        if md_type_path is None:
+            md_type_path = Path(__file__).parent / "metadata" / "default-eo3-type.yaml"
+        return cls(read_file(ds_path), read_file(md_type_path))

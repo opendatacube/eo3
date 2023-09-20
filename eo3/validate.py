@@ -9,7 +9,7 @@ import toolz
 
 from eo3 import schema, utils
 from eo3.fields import all_field_offsets
-from eo3.utils import contains, get_part_from_uri, is_absolute
+from eo3.utils import InvalidDocException, contains, get_part_from_uri, is_absolute
 from eo3.validation_msg import ContextualMessager, Level, ValidationMessages
 
 
@@ -204,11 +204,15 @@ class InvalidDatasetError(Exception):
 
 
 class InvalidDatasetWarning(UserWarning):
-    """A non-critical warning for invalid or incomplete metadata"""
+    """A non-critical warning for invalid or incomplete dataset metadata"""
 
 
-def handle_validation_messages(messages: ValidationMessages):
-    """Capture multiple errors or warning messages and raise them as one"""
+class InvalidDocWarning(UserWarning):
+    """A non-critical warning for invalid or incomplete metadata (generic)"""
+
+
+def _get_validation_messages(messages: ValidationMessages):
+    """Capture multiple errors or warning messages to enable raising them as one"""
     warns = []
     errors = []
     for msg in messages:
@@ -216,7 +220,22 @@ def handle_validation_messages(messages: ValidationMessages):
             warns.append(str(msg))
         if msg.level == Level.error:
             errors.append(str(msg))
+    return warns, errors
+
+
+def handle_ds_validation_messages(messages: ValidationMessages):
+    """Raise all errors and warning messages for an invalid or incomplete dataset"""
+    warns, errors = _get_validation_messages(messages)
     if warns:
         warnings.warn(InvalidDatasetWarning("\n".join(warns)))
     if errors:
         raise InvalidDatasetError("\n".join(errors))
+
+
+def handle_validation_messages(messages: ValidationMessages):
+    """Raise all errors and warnings messages for a document (generic)"""
+    warns, errors = _get_validation_messages(messages)
+    if warns:
+        warnings.warn(InvalidDocWarning("\n".join(warns)))
+    if errors:
+        raise InvalidDocException("\n".join(errors))
