@@ -13,6 +13,7 @@ from eo3 import validate
 from eo3.eo3_core import EO3Grid, prep_eo3
 from eo3.fields import Range, all_field_offsets, get_search_fields, get_system_fields
 from eo3.metadata.validate import validate_metadata_type
+from eo3.product.validate import validate_product
 from eo3.utils import default_utc, parse_time, read_file
 from eo3.validation_msg import ContextualMessager, ValidationMessages
 
@@ -116,6 +117,7 @@ class DatasetMetadata:
         self,
         raw_dict,
         mdt_definition: Mapping = DEFAULT_METADATA_TYPE,
+        product_definition: Mapping = None,
         normalisers: Mapping = BASE_NORMALISERS,
         legacy_lineage=True,
     ):
@@ -135,6 +137,7 @@ class DatasetMetadata:
             self._doc["properties"][key] = self.normalise(key, val)
 
         self.__dict__["_mdt_definition"] = mdt_definition
+        self.__dict__["_product_definition"] = product_definition
 
         # The user-configurable search fields for this dataset type.
         self.__dict__["_search_fields"] = {
@@ -253,6 +256,7 @@ class DatasetMetadata:
     @metadata_type.setter
     def metadata_type(self, val: Mapping):
         validate.handle_validation_messages(validate_metadata_type(val))
+        validate.handle_ds_validation_messages(self.validate_to_mdtype(val))
         self._mdt_definition = val
         self._search_fields = {
             name: field for name, field in get_search_fields(val).items()
@@ -262,6 +266,26 @@ class DatasetMetadata:
         }
         self._all_offsets = all_field_offsets(val)
         self._msg.context["type"] = val.get("name")
+
+    @property
+    def product_definition(self):
+        return self._product_definition
+
+    @product_definition.setter
+    def product_definition(self, val: Mapping):
+        if val is None:
+            self._product_definition = val
+            return
+        validate.handle_validation_messages(validate_product(val))
+        try:
+            # don't update product definition if it there are errors validating against the dataset
+            validate.handle_ds_validation_messages(self.validate_to_product(val))
+            self._product_definition = val
+        except validate.InvalidDatasetError as e:
+            warnings.warn(
+                "Cannot update product definition as it is incompatible with the dataset"  # nosec B608
+                f" and would cause the following issue(s): {e}"  # nosec B608
+            )
 
     # Additional metadata not included in the metadata type
     @property
@@ -354,9 +378,9 @@ class DatasetMetadata:
         doc = toolz.dissoc(self._doc, "extent", "grid_spatial")
         yield from validate.validate_ds_to_schema(doc, self._msg)
 
-    def validate_to_mdtype(self) -> ValidationMessages:
+    def validate_to_mdtype(self, mdt_definition: Mapping) -> ValidationMessages:
         yield from validate.validate_ds_to_metadata_type(
-            self._doc, self._mdt_definition, self._msg
+            self._doc, mdt_definition, self._msg
         )
 
     def validate_measurements(self) -> ValidationMessages:
@@ -376,14 +400,22 @@ class DatasetMetadata:
     def validate_base(self) -> ValidationMessages:
         """Basic validations that can be done with information present at initialisation"""
         yield from self.validate_to_schema()
-        yield from self.validate_to_mdtype()
+        yield from self.validate_to_mdtype(self._mdt_definition)
         # measurements are not mandatory
         if self.measurements:
             yield from self.validate_measurements()
+        if self._product_definition:
+            yield from self.validate_to_product(self._product_definition)
 
     @classmethod
-    def from_path(cls, ds_path, md_type_path=None):
+    def from_path(cls, ds_path, md_type_path=None, product_path=None):
         # Create DatasetMetadata from filepath
         if md_type_path is None:
             md_type_path = Path(__file__).parent / "metadata" / "default-eo3-type.yaml"
-        return cls(read_file(ds_path), read_file(md_type_path))
+        if product_path is None:
+            return cls(read_file(ds_path), read_file(md_type_path))
+        return cls(
+            read_file(ds_path),
+            read_file(md_type_path),
+            product_definition=read_file(product_path),
+        )

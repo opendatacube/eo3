@@ -69,6 +69,20 @@ def test_update_metadata_type(l1_ls8_folder_md_expected: Dict, metadata_type):
         ds.metadata_type = bad_metadata_type
 
 
+def test_set_product_definition(
+    l1_ls8_folder_md_expected: Dict, metadata_type, eo3_product
+):
+    ds = DatasetMetadata(
+        raw_dict=l1_ls8_folder_md_expected,
+        mdt_definition=metadata_type,
+        product_definition=eo3_product,
+    )
+    new_product = toolz.assoc(eo3_product, "name", "other_product_name")
+    with pytest.warns(UserWarning, match="Cannot update"):
+        ds.product_definition = new_product
+    assert ds.product_definition == eo3_product
+
+
 def test_additional_metadata_access(l1_ls8_folder_md_expected: Dict, metadata_type):
     """Check that we are able to access metadata not defined in the metadata type"""
     ds = DatasetMetadata(
