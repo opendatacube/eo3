@@ -83,7 +83,7 @@ pyproj==3.4.0
     # via
     #   eo3 (setup.py)
     #   odc-geo
-pystac==1.7.3
+pystac==1.8.4
     # via eo3 (setup.py)
 python-dateutil==2.8.2
     # via

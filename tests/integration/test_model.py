@@ -7,7 +7,7 @@ import toolz
 
 from eo3.fields import Range
 from eo3.model import DatasetMetadata
-from eo3.utils import default_utc
+from eo3.utils import InvalidDocException, default_utc
 from eo3.validate import InvalidDatasetError
 
 
@@ -58,6 +58,29 @@ def test_update_metadata_type(l1_ls8_folder_md_expected: Dict, metadata_type):
     )
     ds.metadata_type = new_metadata_type
     assert ds.instrument == "OLI_TIRS"
+
+    # we shouldn't be able to update the md type definition if it's invalid
+    bad_metadata_type = toolz.assoc_in(
+        metadata_type,
+        ["dataset", "creation_dt"],
+        ["properties", "invalid_offset"],
+    )
+    with pytest.raises(InvalidDocException):
+        ds.metadata_type = bad_metadata_type
+
+
+def test_set_product_definition(
+    l1_ls8_folder_md_expected: Dict, metadata_type, eo3_product
+):
+    ds = DatasetMetadata(
+        raw_dict=l1_ls8_folder_md_expected,
+        mdt_definition=metadata_type,
+        product_definition=eo3_product,
+    )
+    new_product = toolz.assoc(eo3_product, "name", "other_product_name")
+    with pytest.warns(UserWarning, match="Cannot update"):
+        ds.product_definition = new_product
+    assert ds.product_definition == eo3_product
 
 
 def test_additional_metadata_access(l1_ls8_folder_md_expected: Dict, metadata_type):
@@ -135,3 +158,13 @@ def test_warn_location_deprecated(
     ds = DatasetMetadata(l1_ls8_folder_md_expected)
     with pytest.warns(UserWarning, match="`location` is deprecated"):
         assert ds.locations == ["file:///path/to"]
+
+
+def test_embedded_lineage(l1_ls8_folder_md_expected: Dict):
+    """Error if dataset contains embedded lineage,
+    and that it's not lumped under 'incomplete_geometry'"""
+    l1_ls8_folder_md_expected["lineage"] = {
+        "source_datasets": {"ds": {"id": "abcd", "label": "00000"}}
+    }
+    with pytest.raises(InvalidDatasetError, match="invalid_lineage"):
+        DatasetMetadata(l1_ls8_folder_md_expected)

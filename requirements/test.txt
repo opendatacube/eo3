@@ -178,7 +178,7 @@ pyproj==3.4.0
     #   eo3 (setup.py)
     #   morecantile
     #   odc-geo
-pystac==1.7.3
+pystac==1.8.4
     # via eo3 (setup.py)
 pytest==7.1.3
     # via

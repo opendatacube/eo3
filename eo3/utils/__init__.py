@@ -10,6 +10,7 @@ from .uris import (
     uri_to_local_path,
 )
 from .utils import (
+    Changeable,
     InvalidDocException,
     contains,
     default_utc,
@@ -44,4 +45,5 @@ __all__ = (
     "parse_time",
     "read_file",
     "flatten_dict",
+    "Changeable",
 )

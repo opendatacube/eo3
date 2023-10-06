@@ -80,7 +80,7 @@ setup(
         "click",
         "defusedxml",
         "h5py",
-        "jsonschema==4.18.0",  # We want a Draft7Validator, but 4.18.0 is the only version that works
+        "jsonschema>=4.18",
         "referencing",
         "numpy>=1.15.4",
         "odc-geo",
@@ -93,7 +93,7 @@ setup(
         "xarray",
         "toolz",
         "python-rapidjson",
-        "pystac>=1.7",
+        "pystac>=1.8.4",  # 1.8.4 fixes RefResolver issue
     ],
     tests_require=tests_require,
     extras_require=EXTRAS_REQUIRE,
