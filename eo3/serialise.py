@@ -113,7 +113,7 @@ def to_formatted_doc(d: DatasetMetadata) -> CommentedMap:
     return doc
 
 
-def to_path(path: Path, *ds: DatasetMetadata):
+def to_path(path: Path, *ds: DatasetMetadata) -> None:
     """
     Output dataset(s) as a formatted YAML to a local path
 
@@ -122,7 +122,7 @@ def to_path(path: Path, *ds: DatasetMetadata):
     dump_yaml(path, *(to_formatted_doc(d) for d in ds))
 
 
-def to_stream(stream, *ds: DatasetMetadata):
+def to_stream(stream, *ds: DatasetMetadata) -> None:
     """
     Output dataset(s) as a formatted YAML to an output stream
 

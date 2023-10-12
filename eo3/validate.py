@@ -45,7 +45,7 @@ def validate_ds_to_product(
     doc: Dict,
     product_definition: Mapping,
     msg: ContextualMessager = None,
-):
+) -> ValidationMessages:
     """Validate dataset is consistent with product definition"""
     if msg is None:
         msg = ContextualMessager({"product": product_definition.get("name")})
@@ -96,7 +96,7 @@ def validate_ds_to_metadata_type(
     doc: Dict,
     metadata_type_definition: Dict,
     msg: ContextualMessager = None,
-):
+) -> ValidationMessages:
     """
     Validate against the metadata type definition. A dataset doesn't have to include
     all metadata type fields, but users should be warned that there are missing fields.
