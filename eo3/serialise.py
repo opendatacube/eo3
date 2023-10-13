@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from pathlib import Path, PurePath
 from typing import Mapping
 from uuid import UUID
@@ -8,7 +9,13 @@ from ruamel.yaml import YAML, Representer
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from eo3.model import DatasetMetadata
-from eo3.properties import FileFormat
+
+
+class FileFormat(Enum):
+    GeoTIFF = 1
+    NetCDF = 2
+    Zarr = 3
+    JPEG2000 = 4
 
 
 def _format_representer(dumper, data: FileFormat):
