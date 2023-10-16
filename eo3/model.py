@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Mapping, Optional
 
 import attr
 import toolz
@@ -225,32 +225,32 @@ class DatasetMetadata:
         return list(self.fields)
 
     @property
-    def doc(self) -> Dict[str, Any]:
+    def doc(self) -> dict[str, Any]:
         return self._doc
 
     @property
-    def search_fields(self) -> Dict[str, Any]:
+    def search_fields(self) -> dict[str, Any]:
         return {
             name: field.extract(self.doc) for name, field in self._search_fields.items()
         }
 
     @property
-    def system_fields(self) -> Dict[str, Any]:
+    def system_fields(self) -> dict[str, Any]:
         return {
             name: field.extract(self.doc)
             for name, field in self._system_offsets.items()
         }
 
     @property
-    def fields(self) -> Dict[str, Any]:
+    def fields(self) -> dict[str, Any]:
         return dict(**self.system_fields, **self.search_fields)
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         return self.doc.get("properties")
 
     @property
-    def metadata_type(self) -> Dict[str, Any]:
+    def metadata_type(self) -> dict[str, Any]:
         return self._mdt_definition
 
     @metadata_type.setter
@@ -268,7 +268,7 @@ class DatasetMetadata:
         self._msg.context["type"] = val.get("name")
 
     @property
-    def product_definition(self) -> Dict[str, Any]:
+    def product_definition(self) -> dict[str, Any]:
         return self._product_definition
 
     @product_definition.setter
@@ -289,7 +289,7 @@ class DatasetMetadata:
 
     # Additional metadata not included in the metadata type
     @property
-    def locations(self) -> List[str]:
+    def locations(self) -> list[str]:
         if self.doc.get("location"):
             warnings.warn(
                 "`location` is deprecated and will be removed in a future release. Use `locations` instead."
@@ -308,18 +308,18 @@ class DatasetMetadata:
         return shape(self.doc.get("geometry"))
 
     @property
-    def grids(self) -> Dict[str, EO3Grid]:
+    def grids(self) -> dict[str, EO3Grid]:
         return {key: EO3Grid(doc) for key, doc in self.doc.get("grids").items()}
 
     @property
-    def measurements(self) -> Dict[str, MeasurementDoc]:
+    def measurements(self) -> dict[str, MeasurementDoc]:
         return {
             key: MeasurementDoc(**doc)
             for key, doc in self.doc.get("measurements").items()
         }
 
     @property
-    def accessories(self) -> Dict[str, AccessoryDoc]:
+    def accessories(self) -> dict[str, AccessoryDoc]:
         return {
             key: AccessoryDoc(**doc) for key, doc in self.doc.get("accessories").items()
         }
@@ -331,7 +331,7 @@ class DatasetMetadata:
 
     # Core TODO: copied from datacube.model.Dataset
     @property
-    def extent(self) -> Union[Geometry, None]:
+    def extent(self) -> Optional[Geometry]:
         def xytuple(obj):
             return obj["x"], obj["y"]
 
@@ -352,10 +352,10 @@ class DatasetMetadata:
         return None
 
     # Validation and other methods
-    def without_lineage(self) -> Dict[str, Any]:
+    def without_lineage(self) -> dict[str, Any]:
         return toolz.assoc(self._doc, "lineage", {})
 
-    def normalise(self, key: Union[str, List[str]], val: Any) -> Any:
+    def normalise(self, key: str | list[str], val: Any) -> Any:
         """If property name is present in the normalisation mapping, apply the
         normalisation function"""
         # for easy dealing with offsets, such as when used in __setattr__
