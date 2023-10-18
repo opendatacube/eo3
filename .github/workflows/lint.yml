@@ -42,7 +42,6 @@ jobs:
       - name: Setup mypy
         run: |
           pip install mypy
-          mypy --install-types
 
       - name: Run mypy
         run: |
