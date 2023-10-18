@@ -26,7 +26,7 @@ class EO3Grid:
             raise ValueError("Each grid must have a shape")
         if len(shape) != 2:
             raise ValueError("Grid shape must be two dimensional")
-        self.shape: Tuple[int, int] = tuple(int(x) for x in shape)
+        self.shape: Tuple[int, int] = tuple(int(x) for x in shape)  # type: ignore[assignment]
 
         xform = grid.get("transform")
         if xform is None:

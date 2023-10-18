@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from pathlib import Path, PurePath
-from typing import Mapping
+from typing import Any, Mapping, Tuple
 from uuid import UUID
 
 import numpy
@@ -38,7 +38,7 @@ def _represent_datetime(self, data: datetime):
     But we like to be explicit.
     """
     # If there's a non-utc timezone, use it.
-    if data.tzinfo is not None and (data.utcoffset().total_seconds() > 0):
+    if data.tzinfo is not None and (data.utcoffset().total_seconds() > 0):  # type: ignore[union-attr]
         value = data.isoformat(" ")
     else:
         # Otherwise it's UTC (including when tz==null).
@@ -147,7 +147,7 @@ def _stac_key_order(key: str):
         return key
 
 
-def _eo3_key_order(keyval: str):
+def _eo3_key_order(keyval: Tuple[str, Any]):
     """
     Order keys in an an EO3 document.
 

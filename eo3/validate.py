@@ -3,7 +3,7 @@ Validate ODC dataset documents
 """
 import warnings
 from textwrap import indent
-from typing import Dict, Iterable, List, Mapping, Set, Tuple
+from typing import Any, Iterable, Mapping, Optional, Tuple
 
 import toolz
 
@@ -14,7 +14,7 @@ from eo3.validation_msg import ContextualMessager, Level, ValidationMessages
 
 
 def validate_ds_to_schema(
-    doc: Dict, msg: ContextualMessager = None
+    doc: dict[str, Any], msg: Optional[ContextualMessager] = None
 ) -> ValidationMessages:
     """
     Validate against eo3 schema
@@ -42,16 +42,16 @@ def validate_ds_to_schema(
 
 
 def validate_ds_to_product(
-    doc: Dict,
+    doc: dict[str, Any],
     product_definition: Mapping,
-    msg: ContextualMessager = None,
+    msg: Optional[ContextualMessager] = None,
 ) -> ValidationMessages:
     """Validate dataset is consistent with product definition"""
     if msg is None:
         msg = ContextualMessager({"product": product_definition.get("name")})
 
     product_name = msg.context.get("product")
-    ds_product_name = doc.get("product").get("name")
+    ds_product_name = doc.get("product", {}).get("name")
     if product_name and product_name != ds_product_name:
         yield msg.error(
             "product_mismatch",
@@ -59,7 +59,7 @@ def validate_ds_to_product(
             f"does not match the given product {product_name!r}",
         )
 
-    ds_props = doc.get("properties")
+    ds_props = doc.get("properties", {})
     prod_props = product_definition["metadata"].get("properties", {})
     if not contains(ds_props, prod_props):
         diffs = tuple(_get_printable_differences(ds_props, prod_props))
@@ -71,9 +71,9 @@ def validate_ds_to_product(
         )
 
     product_measurement_names = [
-        m["name"] for m in product_definition.get("measurements")
+        m["name"] for m in product_definition.get("measurements", {})
     ]
-    doc_measurements = doc.get("measurements").keys()
+    doc_measurements = doc.get("measurements", {}).keys()
     for name in product_measurement_names:
         if name not in doc_measurements:
             yield msg.error(
@@ -93,9 +93,9 @@ def validate_ds_to_product(
 
 
 def validate_ds_to_metadata_type(
-    doc: Dict,
-    metadata_type_definition: Dict,
-    msg: ContextualMessager = None,
+    doc: dict[str, Any],
+    metadata_type_definition: dict[str, Any],
+    msg: Optional[ContextualMessager] = None,
 ) -> ValidationMessages:
     """
     Validate against the metadata type definition. A dataset doesn't have to include
@@ -121,7 +121,7 @@ def validate_ds_to_metadata_type(
 
 
 def validate_measurement_path(
-    name, path, msg: ContextualMessager = None
+    name, path, msg: Optional[ContextualMessager] = None
 ) -> ValidationMessages:
     if msg is None:
         msg = ContextualMessager()
@@ -151,7 +151,7 @@ def validate_measurement_path(
         )
 
 
-def _has_offset(doc: Dict, offset: List[str]) -> bool:
+def _has_offset(doc: dict[str, Any], offset: list[str]) -> bool:
     """
     Is the given offset present in the document?
     """
@@ -163,10 +163,10 @@ def _has_offset(doc: Dict, offset: List[str]) -> bool:
 
 
 # Name of a field and its possible offsets in the document.
-FieldNameOffsets = Tuple[str, Set[List[str]]]
+FieldNameOffsets = Tuple[str, list[list[str]]]
 
 
-def _get_field_offsets(metadata_type: Dict) -> Iterable[FieldNameOffsets]:
+def _get_field_offsets(metadata_type: dict[str, Any]) -> Iterable[FieldNameOffsets]:
     """
     Yield all fields and their possible document-offsets that are expected for this metadata type.
 
@@ -179,7 +179,7 @@ def _get_field_offsets(metadata_type: Dict) -> Iterable[FieldNameOffsets]:
     yield from all_field_offsets(metadata_type).items()
 
 
-def _get_printable_differences(dict1: Dict, dict2: Dict):
+def _get_printable_differences(dict1: dict[str, Any], dict2: dict[str, Any]):
     """
     Get a series of lines to print that show the reason that dict1 is not a superset of dict2
     """

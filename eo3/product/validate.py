@@ -1,6 +1,6 @@
 import collections
 import re
-from typing import Dict, Generator, Iterable, Sequence
+from typing import Any, Generator, Iterable, Sequence
 
 import numpy as np
 from odc.geo import CRS
@@ -11,7 +11,7 @@ from eo3.utils.utils import _is_nan
 from eo3.validation_msg import ValidationMessage, ValidationMessages
 
 
-def validate_product(doc: Dict) -> ValidationMessages:
+def validate_product(doc: dict[str, Any]) -> ValidationMessages:
     """
     Check for common product mistakes
     """
@@ -50,8 +50,8 @@ def validate_product(doc: Dict) -> ValidationMessages:
             "Embedded metadata types are deprecated, please reference metatdata type by name",
         )
 
-    yield from validate_product_metadata(doc.get("metadata"), doc["name"])
-    extra_dims = {}
+    yield from validate_product_metadata(doc.get("metadata", {}), doc["name"])
+    extra_dims: dict[str, dict] = {}
     yield from validate_extra_dimensions(
         doc.get("extra_dimensions", []), doc["name"], extra_dims
     )
@@ -69,14 +69,16 @@ def validate_product(doc: Dict) -> ValidationMessages:
             "no_measurements", "Products with no measurements are deprecated."
         )
     else:
-        seen_names_and_aliases = collections.defaultdict(list)
+        seen_names_and_aliases = collections.defaultdict(list)  # type: ignore[var-annotated]
         for measurement in measurements:
             yield from validate_product_measurement(
                 measurement, seen_names_and_aliases, extra_dims
             )
 
 
-def validate_product_metadata(template: Dict, name: str) -> ValidationMessages:
+def validate_product_metadata(
+    template: dict[str, Any], name: str
+) -> ValidationMessages:
     for key, value in template.items():
         if key == "product":
             for prod_key, prod_val in value.items():
@@ -195,7 +197,7 @@ def validate_load_hints(doc) -> ValidationMessages:
 
 
 def validate_extra_dimensions(
-    extra_dimensions: Sequence[Dict], prod_name: str, extra_dims: Dict[str, Dict]
+    extra_dimensions: Sequence[dict], prod_name: str, extra_dims: dict[str, dict]
 ) -> ValidationMessages:
     for dim in extra_dimensions:
         if dim["name"] in extra_dims:
@@ -285,7 +287,7 @@ def validate_product_measurement(
         yield from validate_flags_definition(measurement["flags_definition"])
 
 
-def validate_spectral_definition(spec_def: Dict) -> ValidationMessages:
+def validate_spectral_definition(spec_def: dict) -> ValidationMessages:
     # Schema does not declare wavelength and response required in spectral definition
     if "wavelength" not in spec_def or "response" not in spec_def:
         yield ValidationMessage.error(
@@ -301,7 +303,7 @@ def validate_spectral_definition(spec_def: Dict) -> ValidationMessages:
         )
 
 
-def validate_flags_definition(flags: Dict) -> ValidationMessages:
+def validate_flags_definition(flags: dict) -> ValidationMessages:
     for flagname, flag_def in flags.items():
         # Schema says "bits" is a number or an array.
         # Must be a postive int or an array of positive ints

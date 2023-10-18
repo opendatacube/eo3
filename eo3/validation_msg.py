@@ -27,13 +27,21 @@ class ValidationMessage:
 
     @classmethod
     def info(
-        cls, code: str, reason: str, hint: str = None, context: Optional[Mapping] = None
+        cls,
+        code: str,
+        reason: str,
+        hint: Optional[str] = None,
+        context: Optional[Mapping] = None,
     ) -> "ValidationMessage":
         return ValidationMessage(Level.info, code, reason, hint=hint, context=context)
 
     @classmethod
     def warning(
-        cls, code: str, reason: str, hint: str = None, context: Optional[Mapping] = None
+        cls,
+        code: str,
+        reason: str,
+        hint: Optional[str] = None,
+        context: Optional[Mapping] = None,
     ) -> "ValidationMessage":
         return ValidationMessage(
             Level.warning, code, reason, hint=hint, context=context
@@ -41,7 +49,11 @@ class ValidationMessage:
 
     @classmethod
     def error(
-        cls, code: str, reason: str, hint: str = None, context: Optional[Mapping] = None
+        cls,
+        code: str,
+        reason: str,
+        hint: Optional[str] = None,
+        context: Optional[Mapping] = None,
     ) -> "ValidationMessage":
         return ValidationMessage(Level.error, code, reason, hint=hint, context=context)
 
@@ -54,13 +66,13 @@ class ContextualMessager:
         self.context = context
         self.errors = 0
 
-    def info(self, code: str, reason: str, hint: str = None):
+    def info(self, code: str, reason: str, hint: Optional[str] = None):
         return ValidationMessage.info(code, reason, hint=hint, context=self.context)
 
-    def warning(self, code: str, reason: str, hint: str = None):
+    def warning(self, code: str, reason: str, hint: Optional[str] = None):
         return ValidationMessage.warning(code, reason, hint=hint, context=self.context)
 
-    def error(self, code: str, reason: str, hint: str = None):
+    def error(self, code: str, reason: str, hint: Optional[str] = None):
         self.errors += 1
         return ValidationMessage.error(code, reason, hint=hint, context=self.context)
 

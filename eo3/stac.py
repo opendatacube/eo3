@@ -6,7 +6,7 @@ import math
 import mimetypes
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 from urllib.parse import urljoin
 
 import pystac
@@ -84,7 +84,7 @@ def _media_type(path: Path) -> str:
         return "application/octet-stream"
 
 
-def _asset_roles_fields(asset_name: str) -> List[str]:
+def _asset_roles_fields(asset_name: str) -> list[str]:
     """
     Add roles of the asset object
     """
@@ -104,7 +104,7 @@ def _asset_title_fields(asset_name: str) -> Optional[str]:
         return None
 
 
-def _proj_fields(grid: Dict[str, EO3Grid], grid_name: str = "default") -> Dict:
+def _proj_fields(grid: dict[str, EO3Grid], grid_name: str = "default") -> dict:
     """
     Get any proj (Stac projection extension) fields if we have them for the grid.
     """
@@ -121,7 +121,7 @@ def _proj_fields(grid: Dict[str, EO3Grid], grid_name: str = "default") -> Dict:
     }
 
 
-def _lineage_fields(lineage: Dict) -> Dict:
+def _lineage_fields(lineage: dict) -> dict:
     """
     Add custom lineage field to a STAC Item
     """
@@ -137,11 +137,11 @@ def _lineage_fields(lineage: Dict) -> Dict:
         return {}
 
 
-def _odc_links(
-    explorer_base_url: str,
+def _odc_links(  # type: ignore[misc]
+    explorer_base_url: Optional[str],
     dataset: DatasetMetadata,
     collection_url: Optional[str],
-) -> List[Link]:
+) -> list[Link]:
     """
     Add links for ODC product into a STAC Item
     """
@@ -186,7 +186,9 @@ def _get_projection(dataset: DatasetMetadata) -> Tuple[Optional[int], Optional[s
     return epsg, wkt
 
 
-def eo3_to_stac_properties(dataset: DatasetMetadata, title: str = None) -> Dict:
+def eo3_to_stac_properties(
+    dataset: DatasetMetadata, title: Optional[str] = None
+) -> dict:
     """
     Convert EO3 properties dictionary to the Stac equivalent.
     """
@@ -253,7 +255,7 @@ def to_pystac_item(
         datetime=dt,
         properties=properties,
         geometry=geometry,
-        bbox=bbox,
+        bbox=bbox,  # type: ignore[arg-type]
         collection=dataset.product.name,
     )
 
@@ -316,7 +318,7 @@ def to_pystac_item(
         if dataset.grids:
             proj_fields = _proj_fields(dataset.grids, measurement.grid)
             if proj_fields is not None:
-                proj = ProjectionExtension.ext(asset)
+                proj = ProjectionExtension.ext(asset)  # type: ignore[arg-type]
                 # Not sure how this handles None for an EPSG code
                 proj.apply(
                     shape=proj_fields["shape"],
@@ -327,14 +329,14 @@ def to_pystac_item(
         item.add_asset(name, asset=asset)
 
     # Add assets that are accessories
-    for name, measurement in dataset.accessories.items():
-        if not dataset_location and not measurement.path:
+    for name, accessory in dataset.accessories.items():
+        if not dataset_location and not accessory.path:
             # No URL to link to. URL is mandatory for Stac validation.
             continue
 
         asset = Asset(
-            href=_uri_resolve(dataset_location, measurement.path),
-            media_type=_media_type(Path(measurement.path)),
+            href=_uri_resolve(dataset_location, accessory.path),
+            media_type=_media_type(Path(accessory.path)),
             title=_asset_title_fields(name),
             roles=_asset_roles_fields(name),
         )
@@ -368,7 +370,7 @@ def to_stac_item(
 
 
 def validate_item(
-    item_doc: Dict,
+    item_doc: dict,
     allow_cached_specs: bool = True,
 ):
     """
@@ -388,7 +390,7 @@ def validate_item(
     item.validate()
 
 
-def _uri_resolve(location: str, path: str):
+def _uri_resolve(location: Optional[str], path: str):
     # ODC's method doesn't support empty locations. Fall back to the path alone.
     if not location:
         return path

@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 from attr import define
 
@@ -106,7 +106,7 @@ def validate_eo3_sharefield_offset(
 
 
 def validate_eo3_sharefield_offsets(
-    field_name: str, mdt_name: str, defn: Dict
+    field_name: str, mdt_name: str, defn: dict[str, Any]
 ) -> ValidationMessages:
     if field_name in legacy_fields:
         yield ValidationMessage.error(
@@ -147,7 +147,7 @@ def validate_eo3_sharefield_offsets(
             )
 
 
-def validate_metadata_type(doc: Dict) -> ValidationMessages:
+def validate_metadata_type(doc: dict[str, Any]) -> ValidationMessages:
     """
     Check for common metadata-type mistakes
     """
