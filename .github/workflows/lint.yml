@@ -39,11 +39,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Setup mypy
+      - name: Install and Run mypy
         run: |
           pip install mypy
-          mypy --install-types --non-interactive
-
-      - name: Run mypy
-        run: |
-          mypy --ignore-missing-imports eo3/
+          mypy --install-types --non-interactive --ignore-missing-imports eo3/
