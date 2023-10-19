@@ -42,6 +42,7 @@ jobs:
       - name: Setup mypy
         run: |
           pip install mypy
+          mypy --install-types --non-interactive
 
       - name: Run mypy
         run: |
