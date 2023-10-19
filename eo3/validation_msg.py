@@ -1,3 +1,5 @@
+# mypy: disable-error-code="call-arg"
+
 import enum
 from typing import Generator, Mapping, Optional
 
