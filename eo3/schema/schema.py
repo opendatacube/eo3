@@ -35,7 +35,7 @@ def _load_schema_validator(p: Path) -> jsonschema.Draft7Validator:
         return referencing.Resource(referenced_schema, referencing.jsonschema.DRAFT7)
 
     if p.parent:
-        registry = referencing.Registry(retrieve=doc_reference)
+        registry = referencing.Registry(retrieve=doc_reference)  # type: ignore[call-arg, var-annotated]
     else:
         registry = referencing.Registry()
 

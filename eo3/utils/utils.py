@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence, Tuple, Union
+from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from uuid import UUID
@@ -159,7 +159,7 @@ def get_collection_number(
 
 
 def flatten_dict(
-    d: Mapping, prefix: str = None, separator: str = "."
+    d: Mapping, prefix: Optional[str] = None, separator: str = "."
 ) -> Iterable[Tuple[str, Any]]:
     """
     Flatten a nested dicts into one level, with keys that show their original nested path ("a.b.c")
@@ -461,7 +461,7 @@ def read_file(p: Path):
 # TODO: general util
 # Type that can be checked for changes.
 # (MyPy approximation without recursive references)
-Changeable = Union[str, int, None, Sequence[Any], Mapping[str, Any]]
+Changeable = Optional[str | int | Sequence[Any] | Mapping[str, Any]]
 # More accurate recursive definition:
 # Changeable = Union[str, int, None, Sequence["Changeable"], Mapping[str, "Changeable"]]
 
@@ -501,7 +501,7 @@ def _is_nan(v):
 
 # CORE TODO: from datacube.utils.dates
 # TODO: general util
-def parse_time(time: Union[str, datetime]) -> datetime:
+def parse_time(time: str | datetime) -> datetime:
     """Convert string to datetime object
 
     This function deals with ISO8601 dates fast, and fallbacks to python for

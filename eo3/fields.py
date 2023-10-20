@@ -5,7 +5,7 @@ This allows extraction of fields of interest from dataset metadata document.
 """
 import decimal
 from collections import namedtuple
-from typing import Any, Dict, List, Mapping
+from typing import Any, Mapping
 
 import toolz  # type: ignore[import]
 
@@ -189,7 +189,9 @@ def parse_search_field(doc, name=""):
     )
 
 
-def get_search_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+def get_search_fields(
+    metadata_definition: Mapping[str, Any]
+) -> dict[str, SimpleField | RangeField]:
     """Construct search fields dictionary not tied to any specific db implementation."""
     fields = toolz.get_in(["dataset", "search_fields"], metadata_definition, {})
     return {n: parse_search_field(doc, name=n) for n, doc in fields.items()}
@@ -211,9 +213,11 @@ def parse_offset_field(name="", offset=[]):
         return SimpleField(offset, _TYPE_PARSERS[_type], _type, name=name)
 
 
-def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+def get_system_fields(
+    metadata_definition: Mapping[str, Any]
+) -> dict[str, SimpleField | RangeField]:
     """Construct system fields dictionary not tied to any specific db implementation."""
-    fields = metadata_definition.get("dataset")
+    fields = metadata_definition.get("dataset", {})
     return {
         name: parse_offset_field(name, offset)
         for name, offset in fields.items()
@@ -221,7 +225,9 @@ def get_system_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field
     }
 
 
-def get_all_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
+def get_all_fields(
+    metadata_definition: Mapping[str, Any]
+) -> dict[str, SimpleField | RangeField]:
     """Construct dictionary of all fields"""
     search_fields = {
         name: field for name, field in get_search_fields(metadata_definition).items()
@@ -232,7 +238,9 @@ def get_all_fields(metadata_definition: Mapping[str, Any]) -> Dict[str, Field]:
     return dict(**system_offsets, **search_fields)
 
 
-def all_field_offsets(metadata_definition: Mapping[str, Any]) -> Dict[str, List[Any]]:
+def all_field_offsets(
+    metadata_definition: Mapping[str, Any]
+) -> dict[str, list[list[str]]]:
     """Get a mapping of all field names -> offset"""
     all_fields = get_all_fields(metadata_definition)
     return {

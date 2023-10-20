@@ -1,6 +1,7 @@
 from datetime import datetime
+from enum import Enum
 from pathlib import Path, PurePath
-from typing import Mapping
+from typing import Any, Mapping, Tuple
 from uuid import UUID
 
 import numpy
@@ -8,7 +9,13 @@ from ruamel.yaml import YAML, Representer
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from eo3.model import DatasetMetadata
-from eo3.properties import FileFormat
+
+
+class FileFormat(Enum):
+    GeoTIFF = 1
+    NetCDF = 2
+    Zarr = 3
+    JPEG2000 = 4
 
 
 def _format_representer(dumper, data: FileFormat):
@@ -31,7 +38,7 @@ def _represent_datetime(self, data: datetime):
     But we like to be explicit.
     """
     # If there's a non-utc timezone, use it.
-    if data.tzinfo is not None and (data.utcoffset().total_seconds() > 0):
+    if data.tzinfo is not None and (data.utcoffset().total_seconds() > 0):  # type: ignore[union-attr]
         value = data.isoformat(" ")
     else:
         # Otherwise it's UTC (including when tz==null).
@@ -113,7 +120,7 @@ def to_formatted_doc(d: DatasetMetadata) -> CommentedMap:
     return doc
 
 
-def to_path(path: Path, *ds: DatasetMetadata):
+def to_path(path: Path, *ds: DatasetMetadata) -> None:
     """
     Output dataset(s) as a formatted YAML to a local path
 
@@ -122,7 +129,7 @@ def to_path(path: Path, *ds: DatasetMetadata):
     dump_yaml(path, *(to_formatted_doc(d) for d in ds))
 
 
-def to_stream(stream, *ds: DatasetMetadata):
+def to_stream(stream, *ds: DatasetMetadata) -> None:
     """
     Output dataset(s) as a formatted YAML to an output stream
 
@@ -140,7 +147,7 @@ def _stac_key_order(key: str):
         return key
 
 
-def _eo3_key_order(keyval: str):
+def _eo3_key_order(keyval: Tuple[str, Any]):
     """
     Order keys in an an EO3 document.
 

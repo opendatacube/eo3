@@ -1,6 +1,8 @@
+# mypy: disable-error-code="has-type"
+
 import warnings
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Any, Optional
 
 import attr
 import toolz
@@ -8,6 +10,7 @@ from odc.geo import CRS, Geometry
 from odc.geo.geom import polygon
 from pyproj.exceptions import CRSError
 from ruamel.yaml.timestamp import TimeStamp as RuamelTimeStamp
+from shapely.geometry.base import BaseGeometry
 
 from eo3 import validate
 from eo3.eo3_core import EO3Grid, prep_eo3
@@ -56,8 +59,8 @@ class ProductDoc:
     href is intended as a more global unique "identifier" uri for the product.
     """
 
-    name: str = None
-    href: str = None
+    name: Optional[str] = None
+    href: Optional[str] = None
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -85,7 +88,7 @@ class AccessoryDoc:
     """
 
     path: str
-    type: str = None
+    type: Optional[str] = None
     name: str = attr.ib(metadata=dict(doc_exclude=True), default=None)
 
 
@@ -115,12 +118,12 @@ class DatasetMetadata:
 
     def __init__(
         self,
-        raw_dict,
-        mdt_definition: Mapping = DEFAULT_METADATA_TYPE,
-        product_definition: Mapping = None,
-        normalisers: Mapping = BASE_NORMALISERS,
-        legacy_lineage=True,
-    ):
+        raw_dict: dict[str, Any],
+        mdt_definition: dict[str, Any] = DEFAULT_METADATA_TYPE,
+        product_definition: Optional[dict[str, Any]] = None,
+        normalisers: dict[str, Any] = BASE_NORMALISERS,
+        legacy_lineage: bool = True,
+    ) -> None:
         try:
             self.__dict__["_doc"] = prep_eo3(raw_dict, remap_lineage=legacy_lineage)
         except CRSError:
@@ -159,7 +162,7 @@ class DatasetMetadata:
 
         validate.handle_ds_validation_messages(self.validate_base())
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if name in self.fields.keys():
             return self.fields[name]
         else:
@@ -169,7 +172,7 @@ class DatasetMetadata:
                 )
             )
 
-    def __setattr__(self, name, val):
+    def __setattr__(self, name: str, val: Any) -> None:
         offset = self._all_offsets.get(name)
         if offset is None:
             # check for a @property.setter first
@@ -219,42 +222,44 @@ class DatasetMetadata:
             self._doc = _set_range_offset(name, val, offset, self._doc)
         # otherwise it's a simple field
         else:
-            self._doc = toolz.assoc_in(self._doc, *offset, self.normalise(*offset, val))
+            self._doc = toolz.assoc_in(
+                self._doc, *offset, self.normalise(offset[0], val)
+            )
 
     def __dir__(self):
         return list(self.fields)
 
     @property
-    def doc(self):
+    def doc(self) -> dict[str, Any]:
         return self._doc
 
     @property
-    def search_fields(self):
+    def search_fields(self) -> dict[str, Any]:
         return {
             name: field.extract(self.doc) for name, field in self._search_fields.items()
         }
 
     @property
-    def system_fields(self):
+    def system_fields(self) -> dict[str, Any]:
         return {
             name: field.extract(self.doc)
             for name, field in self._system_offsets.items()
         }
 
     @property
-    def fields(self):
+    def fields(self) -> dict[str, Any]:
         return dict(**self.system_fields, **self.search_fields)
 
     @property
-    def properties(self):
-        return self.doc.get("properties")
+    def properties(self) -> dict[str, Any]:
+        return self.doc.get("properties", {})
 
     @property
-    def metadata_type(self):
+    def metadata_type(self) -> dict[str, Any]:
         return self._mdt_definition
 
     @metadata_type.setter
-    def metadata_type(self, val: Mapping):
+    def metadata_type(self, val: dict[str, Any]) -> None:
         validate.handle_validation_messages(validate_metadata_type(val))
         validate.handle_ds_validation_messages(self.validate_to_mdtype(val))
         self._mdt_definition = val
@@ -268,11 +273,11 @@ class DatasetMetadata:
         self._msg.context["type"] = val.get("name")
 
     @property
-    def product_definition(self):
+    def product_definition(self) -> dict[str, Any]:
         return self._product_definition
 
     @product_definition.setter
-    def product_definition(self, val: Mapping):
+    def product_definition(self, val: dict[str, Any]) -> None:
         if val is None:
             self._product_definition = val
             return
@@ -289,49 +294,50 @@ class DatasetMetadata:
 
     # Additional metadata not included in the metadata type
     @property
-    def locations(self):
-        if self.doc.get("location"):
+    def locations(self) -> Optional[list[str]]:
+        if self.doc.get("location") is not None:
             warnings.warn(
                 "`location` is deprecated and will be removed in a future release. Use `locations` instead."
             )
-            return [self.doc.get("location")]
-        return self.doc.get("locations", None)
+            return [self.doc.get("location")]  # type: ignore[list-item]
+        return self.doc.get("locations")
 
     @property
-    def product(self):
-        return ProductDoc(**self.doc.get("product"))
+    def product(self) -> ProductDoc:
+        return ProductDoc(**self.doc.get("product", {}))
 
     @property
-    def geometry(self):
+    def geometry(self) -> BaseGeometry:
         from shapely.geometry import shape
 
         return shape(self.doc.get("geometry"))
 
     @property
-    def grids(self):
-        return {key: EO3Grid(doc) for key, doc in self.doc.get("grids").items()}
+    def grids(self) -> dict[str, EO3Grid]:
+        return {key: EO3Grid(doc) for key, doc in self.doc.get("grids", {}).items()}
 
     @property
-    def measurements(self):
+    def measurements(self) -> dict[str, MeasurementDoc]:
         return {
             key: MeasurementDoc(**doc)
-            for key, doc in self.doc.get("measurements").items()
+            for key, doc in self.doc.get("measurements", {}).items()
         }
 
     @property
-    def accessories(self):
+    def accessories(self) -> dict[str, AccessoryDoc]:
         return {
-            key: AccessoryDoc(**doc) for key, doc in self.doc.get("accessories").items()
+            key: AccessoryDoc(**doc)
+            for key, doc in self.doc.get("accessories", {}).items()
         }
 
     @property
-    def crs(self) -> str:
+    def crs(self) -> CRS:
         # get doc crs as an actual CRS
         return CRS(self._doc.get("crs"))
 
     # Core TODO: copied from datacube.model.Dataset
     @property
-    def extent(self):
+    def extent(self) -> Optional[Geometry]:
         def xytuple(obj):
             return obj["x"], obj["y"]
 
@@ -352,10 +358,10 @@ class DatasetMetadata:
         return None
 
     # Validation and other methods
-    def without_lineage(self):
+    def without_lineage(self) -> dict[str, Any]:
         return toolz.assoc(self._doc, "lineage", {})
 
-    def normalise(self, key, val):
+    def normalise(self, key: str | list[str], val: Any) -> Any:
         """If property name is present in the normalisation mapping, apply the
         normalisation function"""
         # for easy dealing with offsets, such as when used in __setattr__
@@ -366,7 +372,9 @@ class DatasetMetadata:
             return normalise(val)
         return val
 
-    def validate_to_product(self, product_definition: Mapping):
+    def validate_to_product(
+        self, product_definition: dict[str, Any]
+    ) -> ValidationMessages:
         # Core TODO: replaces datacube.index.hl.check_dataset_consistent and check_consistent
         self._msg.context["product"] = product_definition.get("name")
         yield from validate.validate_ds_to_product(
@@ -378,7 +386,7 @@ class DatasetMetadata:
         doc = toolz.dissoc(self._doc, "extent", "grid_spatial")
         yield from validate.validate_ds_to_schema(doc, self._msg)
 
-    def validate_to_mdtype(self, mdt_definition: Mapping) -> ValidationMessages:
+    def validate_to_mdtype(self, mdt_definition: dict[str, Any]) -> ValidationMessages:
         yield from validate.validate_ds_to_metadata_type(
             self._doc, mdt_definition, self._msg
         )
@@ -408,7 +416,12 @@ class DatasetMetadata:
             yield from self.validate_to_product(self._product_definition)
 
     @classmethod
-    def from_path(cls, ds_path, md_type_path=None, product_path=None):
+    def from_path(
+        cls,
+        ds_path: Path,
+        md_type_path: Optional[Path] = None,
+        product_path: Optional[Path] = None,
+    ) -> "DatasetMetadata":
         # Create DatasetMetadata from filepath
         if md_type_path is None:
             md_type_path = Path(__file__).parent / "metadata" / "default-eo3-type.yaml"
