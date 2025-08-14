@@ -2,6 +2,7 @@
 Test utility uri functions
 (tests copied from datacube-core/tests/test_utils_other.py)
 """
+
 import os
 from pathlib import Path
 
