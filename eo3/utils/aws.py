@@ -1,6 +1,7 @@
 """
 Helper methods for working with AWS
 """
+
 import os
 from typing import Any, Dict, Optional, Tuple, Union
 from urllib.parse import urlparse

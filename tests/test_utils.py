@@ -2,6 +2,7 @@
 Test utility functions
 (tests copied from datacube-core/tests/test_utils_docs.py and test_utils_generic.py)
 """
+
 from collections import OrderedDict
 from pathlib import Path
 from typing import Iterable, Tuple

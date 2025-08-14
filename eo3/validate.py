@@ -1,6 +1,7 @@
 """
 Validate ODC dataset documents
 """
+
 import warnings
 from textwrap import indent
 from typing import Any, Iterable, Mapping, Optional, Tuple

@@ -1,5 +1,5 @@
-""" Tools for working with EO3 metadata
-"""
+"""Tools for working with EO3 metadata"""
+
 import warnings
 from functools import reduce
 from typing import Any, Dict, Iterable, Optional, Tuple, Union

@@ -190,7 +190,7 @@ def parse_search_field(doc, name=""):
 
 
 def get_search_fields(
-    metadata_definition: Mapping[str, Any]
+    metadata_definition: Mapping[str, Any],
 ) -> dict[str, SimpleField | RangeField]:
     """Construct search fields dictionary not tied to any specific db implementation."""
     fields = toolz.get_in(["dataset", "search_fields"], metadata_definition, {})
@@ -214,7 +214,7 @@ def parse_offset_field(name="", offset=[]):
 
 
 def get_system_fields(
-    metadata_definition: Mapping[str, Any]
+    metadata_definition: Mapping[str, Any],
 ) -> dict[str, SimpleField | RangeField]:
     """Construct system fields dictionary not tied to any specific db implementation."""
     fields = metadata_definition.get("dataset", {})
@@ -226,7 +226,7 @@ def get_system_fields(
 
 
 def get_all_fields(
-    metadata_definition: Mapping[str, Any]
+    metadata_definition: Mapping[str, Any],
 ) -> dict[str, SimpleField | RangeField]:
     """Construct dictionary of all fields"""
     search_fields = {
@@ -239,7 +239,7 @@ def get_all_fields(
 
 
 def all_field_offsets(
-    metadata_definition: Mapping[str, Any]
+    metadata_definition: Mapping[str, Any],
 ) -> dict[str, list[list[str]]]:
     """Get a mapping of all field names -> offset"""
     all_fields = get_all_fields(metadata_definition)
