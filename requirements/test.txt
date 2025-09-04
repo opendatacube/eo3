@@ -68,7 +68,7 @@ coverage[toml]==7.3.1
     # via pytest-cov
 cryptography==41.0.3
     # via moto
-deepdiff==6.2.1
+deepdiff==8.6.1
     # via eo3 (setup.py)
 defusedxml==0.7.1
     # via eo3 (setup.py)
@@ -139,7 +139,7 @@ numpy==1.23.4
     #   xarray
 odc-geo==0.3.3
     # via eo3 (setup.py)
-ordered-set==4.1.0
+orderly-set==5.5.0
     # via deepdiff
 packaging==21.3
     # via
