@@ -23,7 +23,7 @@ tests_require = [
     "rio_cogeo",
     "sphinx-autodoc-typehints",
     "sphinx_rtd_theme",
-    "moto",
+    "moto<5",
 ]
 
 EXTRAS_REQUIRE = {
@@ -93,7 +93,7 @@ setup(
         "xarray",
         "toolz",
         "python-rapidjson",
-        "pystac>=1.8.4",  # 1.8.4 fixes RefResolver issue
+        "pystac>=1.8.4,<1.12",  # 1.8.4 fixes RefResolver issue
     ],
     tests_require=tests_require,
     extras_require=EXTRAS_REQUIRE,
