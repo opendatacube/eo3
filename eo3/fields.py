@@ -5,7 +5,8 @@ This allows extraction of fields of interest from dataset metadata document.
 """
 import decimal
 from collections import namedtuple
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import toolz  # type: ignore[import]
 
@@ -229,12 +230,8 @@ def get_all_fields(
     metadata_definition: Mapping[str, Any],
 ) -> dict[str, SimpleField | RangeField]:
     """Construct dictionary of all fields"""
-    search_fields = {
-        name: field for name, field in get_search_fields(metadata_definition).items()
-    }
-    system_offsets = {
-        name: field for name, field in get_system_fields(metadata_definition).items()
-    }
+    search_fields = dict(get_search_fields(metadata_definition).items())
+    system_offsets = dict(get_system_fields(metadata_definition).items())
     return dict(**system_offsets, **search_fields)
 
 

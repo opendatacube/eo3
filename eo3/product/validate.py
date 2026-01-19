@@ -1,6 +1,7 @@
 import collections
 import re
-from typing import Any, Generator, Iterable, Sequence
+from collections.abc import Generator, Iterable, Sequence
+from typing import Any
 
 import numpy as np
 from odc.geo import CRS
