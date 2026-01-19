@@ -14,8 +14,7 @@ from eo3.fields import (
     parse_search_field,
 )
 
-METADATA_DOC = YAML(typ="safe").load(
-    """---
+METADATA_DOC = YAML(typ="safe").load("""---
 name: test
 description: test all simple search field types
 dataset:
@@ -52,11 +51,9 @@ dataset:
       type: datetime
       description: field of type 'datetime'
       offset: [x_datetime_path]
-"""
-)
+""")
 
-SAMPLE_DOC = YAML(typ="safe").load(
-    """---
+SAMPLE_DOC = YAML(typ="safe").load("""---
 x_string_path: some_string
 x_double_path: 6.283185307179586
 x_integer_path: 4466778
@@ -65,11 +62,9 @@ x_datetime_path: 1999-04-15 12:33:55.001
 some:
   path:
     x_default_type_path: just_a_string
-"""
-)
+""")
 
-METADATA_DOC_RANGES = YAML(typ="safe").load(
-    """---
+METADATA_DOC_RANGES = YAML(typ="safe").load("""---
 name: test
 description: test all simple search field types
 dataset:
@@ -98,11 +93,9 @@ dataset:
        type: integer-range
        min_offset: [[a]]
        max_offset: [[b]]
-"""
-)
+""")
 
-SAMPLE_DOC_RANGES = YAML(typ="safe").load(
-    """---
+SAMPLE_DOC_RANGES = YAML(typ="safe").load("""---
 t:
   a: 1999-04-15
   b: 1999-04-16
@@ -111,8 +104,7 @@ x:
   b: 2
   c: 3
   d: 4
-"""
-)
+""")
 
 
 def test_get_dataset_simple_fields():
@@ -211,56 +203,36 @@ def test_bad_field_definition():
         return YAML(typ="safe").load(dedent(s))
 
     with pytest.raises(ValueError):
-        parse_search_field(
-            doc(
-                """
+        parse_search_field(doc("""
         type: bad_type
         offset: [a]
-        """
-            )
-        )
+        """))
 
     with pytest.raises(ValueError):
-        parse_search_field(
-            doc(
-                """
+        parse_search_field(doc("""
         type: badtype-range
         offset: [a]
-        """
-            )
-        )
+        """))
 
     with pytest.raises(ValueError):
-        parse_search_field(
-            doc(
-                """
+        parse_search_field(doc("""
         type: double
         description: missing offset
-        """
-            )
-        )
+        """))
 
     with pytest.raises(ValueError):
-        parse_search_field(
-            doc(
-                """
+        parse_search_field(doc("""
         type: double-range
         description: missing min_offset
         max_offset: [[a]]
-        """
-            )
-        )
+        """))
 
     with pytest.raises(ValueError):
-        parse_search_field(
-            doc(
-                """
+        parse_search_field(doc("""
         type: double-range
         description: missing max_offset
         min_offset: [[a]]
-        """
-            )
-        )
+        """))
 
 
 def test_expression():
