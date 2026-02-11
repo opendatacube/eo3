@@ -107,8 +107,7 @@ def test_bad_crs(example_metadata: Dict):
         DatasetMetadata(example_metadata)
 
     # A CRS should be in epsg form if an EPSG exists, not WKT
-    example_metadata["crs"] = dedent(
-        """PROJCS["WGS 84 / UTM zone 55N",
+    example_metadata["crs"] = dedent("""PROJCS["WGS 84 / UTM zone 55N",
     GEOGCS["WGS 84",
         DATUM["WGS_1984",
             SPHEROID["WGS 84",6378137,298.257223563,
@@ -130,8 +129,7 @@ def test_bad_crs(example_metadata: Dict):
     AUTHORITY["EPSG","32655"],
     AXIS["Easting",EAST],
     AXIS["Northing",NORTH]]
-    """
-    )
+    """)
     with pytest.warns(UserWarning, match="change CRS to 'epsg:32655'"):
         DatasetMetadata(example_metadata)
 

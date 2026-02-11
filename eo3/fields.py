@@ -3,6 +3,7 @@
 
 This allows extraction of fields of interest from dataset metadata document.
 """
+
 import decimal
 from collections import namedtuple
 from typing import Any, Mapping
