@@ -70,7 +70,7 @@ coverage[toml]==7.12.0
     # via pytest-cov
 cryptography==46.0.5
     # via moto
-deepdiff==8.6.1
+deepdiff==8.6.2
     # via eo3 (setup.py)
 defusedxml==0.7.1
     # via eo3 (setup.py)
