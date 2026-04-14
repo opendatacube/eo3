@@ -189,7 +189,7 @@ pyproj==3.7.1
     #   odc-geo
 pystac==1.11.0
     # via eo3 (setup.py)
-pytest==9.0.1
+pytest==9.0.3
     # via
     #   eo3 (setup.py)
     #   pytest-cov
