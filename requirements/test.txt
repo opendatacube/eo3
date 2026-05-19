@@ -88,7 +88,7 @@ gdal==3.6.3
     # via eo3 (setup.py)
 h5py==3.15.1
     # via eo3 (setup.py)
-idna==3.11
+idna==3.15
     # via requests
 imageio==2.37.2
     # via scikit-image
