@@ -156,7 +156,7 @@ pandas==2.3.3
     # via xarray
 pep8-naming==0.15.1
     # via eo3 (setup.py)
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   imageio
     #   scikit-image
