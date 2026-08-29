@@ -12,7 +12,6 @@ from eo3.validate import (
     validate_ds_to_schema,
 )
 from eo3.validation_msg import ValidationMessage
-
 from tests.common import MessageCatcher
 
 
@@ -186,7 +185,7 @@ def test_product_metadata_mismatch(
 
 def test_has_offset():
     """_has_offset helper function for checking missing offsets"""
-    doc = dict(spam="spam", bacon="eggs", atmosphere=dict(interruptions="vikings"))
+    doc = {"spam": "spam", "bacon": "eggs", "atmosphere": {"interruptions": "vikings"}}
     from eo3.validate import _has_offset
 
     assert _has_offset(doc, ["spam"])

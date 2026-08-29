@@ -4,8 +4,9 @@ Test utility functions
 """
 
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import numpy as np
 import pytest

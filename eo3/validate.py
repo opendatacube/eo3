@@ -3,8 +3,9 @@ Validate ODC dataset documents
 """
 
 import warnings
+from collections.abc import Iterable, Mapping
 from textwrap import indent
-from typing import Any, Iterable, Mapping, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import toolz
 

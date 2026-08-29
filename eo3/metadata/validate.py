@@ -1,6 +1,7 @@
 # mypy: disable-error-code="call-arg"
 
-from typing import Any, Callable, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any, Callable, Optional
 
 from attr import define
 
