@@ -1,5 +1,6 @@
 import operator
-from typing import Dict, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Dict
 
 import rapidjson
 from click.testing import CliRunner, Result

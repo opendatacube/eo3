@@ -64,7 +64,7 @@ lineage: {}
 
 @pytest.fixture
 def basic_grid():
-    return EO3Grid(dict(shape=(100, 100), transform=Affine(0, 100, 50, 100, 0, 50)))
+    return EO3Grid({"shape": (100, 100), "transform": Affine(0, 100, 50, 100, 0, 50)})
 
 
 @pytest.fixture
@@ -142,7 +142,7 @@ def test_grid_points():
     pts = grid.points()
     assert pts == [(100, 0), (122, 0), (122, 11), (100, 11)]
 
-    for bad in [{}, dict(shape=(1, 1)), dict(transform=identity)]:
+    for bad in [{}, {"shape": (1, 1)}, {"transform": identity}]:
         with pytest.raises(ValueError):
             grid = EO3Grid(bad)
 

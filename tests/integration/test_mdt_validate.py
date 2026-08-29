@@ -1,7 +1,6 @@
 from typing import Dict
 
 from eo3.metadata.validate import legacy_fields, validate_metadata_type
-
 from tests.common import MessageCatcher
 
 
