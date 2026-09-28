@@ -195,7 +195,7 @@ def eo3_to_stac_properties(
     """
     properties = {
         # Put the title at the top for document readability.
-        **(dict(title=title) if title else {}),
+        **({"title": title} if title else {}),
         **{
             MAPPING_EO3_TO_STAC.get(key, key): _convert_value_to_stac_type(key, val)
             for key, val in dataset.properties.items()

@@ -1,7 +1,6 @@
 from typing import Dict
 
 from eo3.product.validate import validate_product
-
 from tests.common import MessageCatcher
 
 
@@ -67,7 +66,7 @@ def test_warn_duplicate_measurement_name(eo3_product):
     orig_measurements = product["measurements"]
     # We have the "blue" measurement twice.
     product["measurements"] = orig_measurements + [
-        dict(name="blue", dtype="uint8", units="1", nodata=255)
+        {"name": "blue", "dtype": "uint8", "units": "1", "nodata": 255}
     ]
 
     msgs = MessageCatcher(validate_product(product))
@@ -76,17 +75,17 @@ def test_warn_duplicate_measurement_name(eo3_product):
 
     # An *alias* clashes with the *name* of a measurement.
     product["measurements"] = orig_measurements + [
-        dict(
-            name="azul",
-            aliases=[
+        {
+            "name": "azul",
+            "aliases": [
                 "icecream",
                 # Clashes with the *name* of a measurement.
                 "blue",
             ],
-            units="1",
-            dtype="uint8",
-            nodata=255,
-        ),
+            "units": "1",
+            "dtype": "uint8",
+            "nodata": 255,
+        },
     ]
     msgs = MessageCatcher(validate_product(product))
     assert "duplicate_measurement_name" in msgs.error_text()
@@ -94,16 +93,16 @@ def test_warn_duplicate_measurement_name(eo3_product):
 
     # An alias is duplicated on the same measurement. Not an error, just a message!
     product["measurements"] = [
-        dict(
-            name="blue",
-            aliases=[
+        {
+            "name": "blue",
+            "aliases": [
                 "icecream",
                 "blue",
             ],
-            dtype="uint8",
-            units="1",
-            nodata=255,
-        ),
+            "dtype": "uint8",
+            "units": "1",
+            "nodata": 255,
+        },
     ]
     msgs = MessageCatcher(validate_product(product))
     assert not msgs.errors()
@@ -140,13 +139,13 @@ def test_complains_about_impossible_nodata_vals(product: Dict):
     """Complain if a product nodata val cannot be represented in the dtype"""
 
     product["measurements"].append(
-        dict(
-            name="paradox",
-            dtype="uint8",
-            units="1",
+        {
+            "name": "paradox",
+            "dtype": "uint8",
+            "units": "1",
             # Impossible for a uint6
-            nodata=-999,
-        )
+            "nodata": -999,
+        }
     )
     msgs = MessageCatcher(validate_product(product))
     assert "unsuitable_nodata" in msgs.error_text()
@@ -156,32 +155,32 @@ def test_rejects_invalid_measurements(product: Dict):
     """Complain if measurements are invalid"""
     # missing property (name)
     product["measurements"] = [
-        dict(
-            dtype="uint8",
-            units="1",
-            nodata=0,
-        )
+        {
+            "dtype": "uint8",
+            "units": "1",
+            "nodata": 0,
+        }
     ]
     msgs = MessageCatcher(validate_product(product))
     assert "name" in msgs.error_text()
 
     # invalid dtype
     product["measurements"] = [
-        dict(name="red", dtype="random_type", units="1", nodata=-999)
+        {"name": "red", "dtype": "random_type", "units": "1", "nodata": -999}
     ]
     msgs = MessageCatcher(validate_product(product))
     assert "random_type" in msgs.error_text()
 
     # additional property
     product["measurements"] = [
-        dict(name="red", dtype="uint8", units="1", nodata=0, asdf="asdf")
+        {"name": "red", "dtype": "uint8", "units": "1", "nodata": 0, "asdf": "asdf"}
     ]
     msgs = MessageCatcher(validate_product(product))
     assert "asdf" in msgs.error_text()
 
 
 def test_product_metadata_name(eo3_product):
-    eo3_product["metadata"]["product"] = dict(name="spam")
+    eo3_product["metadata"]["product"] = {"name": "spam"}
     err_msgs = MessageCatcher(validate_product(eo3_product)).error_text()
     assert "product_name_mismatch" in err_msgs
     assert "spam" in err_msgs
@@ -198,13 +197,13 @@ def test_product_metadata_name(eo3_product):
 
 
 def test_invalid_metadatasection(eo3_product):
-    eo3_product["metadata"]["spam"] = dict(eggs="bacon")
+    eo3_product["metadata"]["spam"] = {"eggs": "bacon"}
     msgs = MessageCatcher(validate_product(eo3_product))
     assert "invalid_metadata_key" in msgs.error_text()
 
 
 def test_product_nested_metadata(eo3_product):
-    eo3_product["metadata"]["properties"]["spam"] = dict(eggs="bacon")
+    eo3_product["metadata"]["properties"]["spam"] = {"eggs": "bacon"}
     msgs = MessageCatcher(validate_product(eo3_product))
     assert "nested_metadata" in msgs.error_text()
 
