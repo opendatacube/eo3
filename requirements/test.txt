@@ -304,7 +304,7 @@ urllib3==2.8.0
     #   botocore
     #   requests
     #   responses
-werkzeug==3.1.6
+werkzeug==3.1.9
     # via
     #   moto
     #   pytest-httpserver
