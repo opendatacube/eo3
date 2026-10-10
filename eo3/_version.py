@@ -15,8 +15,8 @@ import os
 import re
 import subprocess
 import sys
-
 from typing import Any
+
 
 def get_keywords():
     """Get the keywords needed to look up the version information."""
