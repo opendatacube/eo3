@@ -230,12 +230,8 @@ def get_all_fields(
     metadata_definition: Mapping[str, Any],
 ) -> dict[str, SimpleField | RangeField]:
     """Construct dictionary of all fields"""
-    search_fields = {
-        name: field for name, field in get_search_fields(metadata_definition).items()
-    }
-    system_offsets = {
-        name: field for name, field in get_system_fields(metadata_definition).items()
-    }
+    search_fields = {**get_search_fields(metadata_definition)}
+    system_offsets = {**get_system_fields(metadata_definition)}
     return dict(**system_offsets, **search_fields)
 
 

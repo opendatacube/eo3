@@ -143,14 +143,10 @@ class DatasetMetadata:
         self.__dict__["_product_definition"] = product_definition
 
         # The user-configurable search fields for this dataset type.
-        self.__dict__["_search_fields"] = {
-            name: field for name, field in get_search_fields(mdt_definition).items()
-        }
+        self.__dict__["_search_fields"] = {**get_search_fields(mdt_definition)}
         # The field offsets that the datacube itself understands: id, format, sources etc.
         # (See the metadata-type-schema.yaml or the comments in default-metadata-types.yaml)
-        self.__dict__["_system_offsets"] = {
-            name: field for name, field in get_system_fields(mdt_definition).items()
-        }
+        self.__dict__["_system_offsets"] = {**get_system_fields(mdt_definition)}
 
         self.__dict__["_all_offsets"] = all_field_offsets(mdt_definition)
 
@@ -263,12 +259,8 @@ class DatasetMetadata:
         validate.handle_validation_messages(validate_metadata_type(val))
         validate.handle_ds_validation_messages(self.validate_to_mdtype(val))
         self._mdt_definition = val
-        self._search_fields = {
-            name: field for name, field in get_search_fields(val).items()
-        }
-        self._system_offsets = {
-            name: field for name, field in get_system_fields(val).items()
-        }
+        self._search_fields = {**get_search_fields(val)}
+        self._system_offsets = {**get_system_fields(val)}
         self._all_offsets = all_field_offsets(val)
         self._msg.context["type"] = val.get("name")
 
