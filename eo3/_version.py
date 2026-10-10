@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 
+from typing import Any
 
 def get_keywords():
     """Get the keywords needed to look up the version information."""
@@ -52,7 +53,7 @@ class NotThisMethod(Exception):
     """Exception raised if a method is not valid for the current scenario."""
 
 
-HANDLERS = {}
+HANDLERS: dict[str, Any] = {}
 
 
 def register_vcs_handler(vcs, method):  # decorator
