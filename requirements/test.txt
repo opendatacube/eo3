@@ -39,7 +39,7 @@ cachetools==6.2.2
     # via odc-geo
 cattrs==25.3.0
     # via eo3 (setup.py)
-certifi==2025.11.12
+certifi==2026.10.23
     # via
     #   netcdf4
     #   pyproj
