@@ -9,7 +9,6 @@ from eo3 import serialise
 from eo3.scripts import tostac
 from eo3.utils import read_file
 from eo3.validate import InvalidDatasetError
-
 from tests.common import assert_same, run_prepare_cli
 
 TO_STAC_DATA: Path = Path(__file__).parent.joinpath("data/tostac")

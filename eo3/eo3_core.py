@@ -1,8 +1,9 @@
 """Tools for working with EO3 metadata"""
 
 import warnings
+from collections.abc import Iterable
 from functools import reduce
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 from uuid import UUID
 
 from affine import Affine
@@ -56,7 +57,7 @@ class EO3Grid:
 
     def ref_points(self) -> Dict[str, Dict[str, float]]:
         nn = ["ul", "ur", "lr", "ll"]
-        return {n: dict(x=x, y=y) for n, (x, y) in zip(nn, self.points())}
+        return {n: {"x": x, "y": y} for n, (x, y) in zip(nn, self.points())}
 
     def polygon(self, crs: Optional[SomeCRS] = None) -> Geometry:
         # use grid's own CRS if it was provided
@@ -140,28 +141,28 @@ def eo3_grid_spatial(
 
     geometry = doc.get("geometry")
     if geometry is not None:
-        valid_data: Dict[str, Any] = dict(valid_data=geometry)
+        valid_data: Dict[str, Any] = {"valid_data": geometry}
         valid_geom: Optional[Geometry] = polygon(
             valid_data["valid_data"]["coordinates"][0], crs=crs
         )
     else:
-        valid_data = dict(valid_data=grid.polygon().json)
+        valid_data = {"valid_data": grid.polygon().json}
         valid_geom = None
 
-    oo = dict(
-        grid_spatial=dict(
-            projection={
+    oo = {
+        "grid_spatial": {
+            "projection": {
                 "spatial_reference": crs,
                 "geo_ref_points": grid.ref_points(),
                 **valid_data,
             }
-        )
-    )
+        }
+    }
 
     x1, y1, x2, y2 = eo3_lonlat_bbox(
         grids.values(), crs, valid_data=valid_geom, resolution=resolution
     )
-    oo["extent"] = dict(lon=dict(begin=x1, end=x2), lat=dict(begin=y1, end=y2))
+    oo["extent"] = {"lon": {"begin": x1, "end": x2}, "lat": {"begin": y1, "end": y2}}
     return oo
 
 
@@ -265,7 +266,7 @@ def prep_eo3(
         for name, uuids in lineage.items():
             sources.update(lineage_remap(name, uuids))
 
-        doc["lineage"] = dict(source_datasets=sources)
+        doc["lineage"] = {"source_datasets": sources}
     return doc
 
 

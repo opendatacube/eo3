@@ -1,7 +1,8 @@
 # mypy: disable-error-code="call-arg"
 
 import enum
-from typing import Generator, Mapping, Optional
+from collections.abc import Generator, Mapping
+from typing import Optional
 
 from attr import frozen
 
