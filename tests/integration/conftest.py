@@ -588,16 +588,18 @@ def metadata_type():
 
 @pytest.fixture()
 def product():
-    return dict(
-        name="simple_test_product",
-        description="Our test product",
-        metadata={},
-        license="CC-BY-SA-4.0",
-        metadata_type="eo3",
-        measurements=[dict(name="blue", units="1", dtype="uint8", nodata=255)],
-        default_allowances=dict(
+    return {
+        "name": "simple_test_product",
+        "description": "Our test product",
+        "metadata": {},
+        "license": "CC-BY-SA-4.0",
+        "metadata_type": "eo3",
+        "measurements": [
+            {"name": "blue", "units": "1", "dtype": "uint8", "nodata": 255}
+        ],
+        "default_allowances": {
             # Allow anything used in test data. We don't need to test this warning except when done explicitly.
-            allow_extra_measurements=[
+            "allow_extra_measurements": [
                 "cirrus",
                 "coastal_aerosol",
                 "green",
@@ -610,8 +612,8 @@ def product():
                 "swir_1",
                 "swir_2",
             ],
-        ),
-    )
+        },
+    }
 
 
 @pytest.fixture()

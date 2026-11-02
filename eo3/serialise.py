@@ -1,7 +1,8 @@
+from collections.abc import Mapping
 from datetime import datetime
 from enum import Enum
 from pathlib import Path, PurePath
-from typing import Any, Mapping, Tuple
+from typing import Any, Tuple
 from uuid import UUID
 
 import numpy
